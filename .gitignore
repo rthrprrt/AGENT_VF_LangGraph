@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry
+.venv/
+
+# Environment variables
+.env
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data files (if large or sensitive and not meant for versioning)
+# Consider what in 'data/input' and 'data/processed' should be ignored.
+# For example, the actual PDF and journal entries might be large.
+# data/input/school_guidelines/*.pdf
+# data/input/journal_entries/*
+# data/processed/vector_store/*
+# data/processed/langgraph_checkpoints.sqlite # Checkpoints can get large
+
+# Output files
+outputs/
