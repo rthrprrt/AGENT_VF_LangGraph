@@ -12,101 +12,111 @@ logger = logging.getLogger(__name__)
 
 
 class JournalContextRetrieverArgs(BaseModel):
-    """Arguments for the JournalContextRetrieverTool."""
+    """Input arguments for JournalContextRetrieverTool."""
 
     query_or_keywords: str = Field(
-        description="The query or keywords to search for in the journal."
+        description="La requête ou les mots-clés à rechercher dans le journal."
     )
     k_retrieval_count: int | None = Field(
-        default=3, description="Number of relevant chunks to retrieve (default 3)."
+        default=3, description="Nombre de chunks pertinents à récupérer (défaut 3)."
     )
 
 
 class JournalContextRetrieverTool(BaseTool):
-    """Retrieves relevant, anonymized excerpts from the student's journal.
-
-    This tool queries a FAISS vector store built from the apprenticeship
-    journal to find specific experiences, tasks, reflections, or details
-    mentioned, based on a query or keywords.
-    """
-
-    # Correction D205 (ligne 31) : Assurer la ligne vide dans la docstring de la classe.
+    """Tool to retrieve relevant, anonymized excerpts from journal."""
 
     name: str = "journal_context_retriever"
     description: str = (
-        "Retrieves relevant, anonymized excerpts from the student's "
-        "apprenticeship journal based on a query or keywords. Use this to "
-        "find specific experiences, tasks, reflections, or details "
-        "mentioned in the journal."
+        "Récupère des extraits pertinents et anonymisés du journal "
+        "d'apprentissage de l'étudiant en fonction d'une requête ou de "
+        "mots-clés. Utiliser pour trouver des expériences spécifiques, "
+        "des tâches, des réflexions ou des détails mentionnés dans le journal."
     )
     args_schema: type[BaseModel] = JournalContextRetrieverArgs
 
     vector_store_path: str
     embedding_model_name: str
 
-    def _run(
-        self, query_or_keywords: str, k_retrieval_count: int | None = 3
-    ) -> list[dict[str, Any]]:
-        logger.info(f"--- Retrieving journal context for: '{query_or_keywords}' ---")
+    def _load_vector_store(self, embeddings: FastEmbedEmbeddings) -> FAISS | None:
+        """Loads the FAISS vector store from the configured path."""
+        index_file = os.path.join(self.vector_store_path, "index.faiss")
+        if not os.path.exists(self.vector_store_path) or not os.path.exists(index_file):
+            logger.error(
+                "Vector store non trouvé ou incomplet à %s", self.vector_store_path
+            )
+            return None
+        try:
+            return FAISS.load_local(
+                self.vector_store_path, embeddings, allow_dangerous_deserialization=True
+            )
+        except FileNotFoundError as e:  # Attraper FileNotFoundError spécifiquement
+            logger.error(
+                "Fichier index FAISS non trouvé (%s): %s", self.vector_store_path, e
+            )
+            return None
+        except Exception as e:  # Pour autres erreurs de chargement de FAISS
+            logger.error(
+                "Erreur chargement index FAISS %s: %s",
+                self.vector_store_path,
+                e,
+                exc_info=True,
+            )
+            return None
 
-        effective_k = k_retrieval_count if k_retrieval_count is not None else 3
+    def _run(
+        self, query_or_keywords: str, k_retrieval_count: int | None = None
+    ) -> list[dict[str, Any]]:
+        logger.info(
+            "Récupération de contexte pour : '%s' avec k=%s",
+            query_or_keywords,
+            k_retrieval_count,
+        )
+        effective_k = k_retrieval_count
+        if effective_k is None:
+            default_k_from_schema = self.args_schema.model_fields[
+                "k_retrieval_count"
+            ].default
+            effective_k = (
+                default_k_from_schema if default_k_from_schema is not None else 3
+            )
 
         try:
             embeddings = FastEmbedEmbeddings(model_name=self.embedding_model_name)
-        except Exception:
+        except Exception as e:
             logger.error(
-                f"Error initializing embedding model ({self.embedding_model_name})",
+                "Échec init embedding model (%s): %s",
+                self.embedding_model_name,
+                e,
                 exc_info=True,
             )
-            return [
-                {
-                    "error": "Failed to initialize embedding model",
-                }
-            ]
+            return [{"error": "Échec init embedding model", "details": str(e)}]
 
-        vector_store_index_path = os.path.join(self.vector_store_path, "index.faiss")
-        if not os.path.exists(self.vector_store_path) or not os.path.exists(
-            vector_store_index_path
-        ):
-            error_msg = f"Vector store not found at {self.vector_store_path}"
-            logger.error(error_msg)
-            return [{"error": error_msg}]
+        vector_store = self._load_vector_store(embeddings)
+        if not vector_store:
+            # Message d'erreur coupé pour respecter la longueur
+            error_msg_part1 = "Vector store non trouvé ou erreur de chargement à"
+            error_msg_part2 = f" {self.vector_store_path}"
+            return [{"error": error_msg_part1 + error_msg_part2}]
 
-        try:
-            vector_store = FAISS.load_local(
-                self.vector_store_path,
-                embeddings,
-                allow_dangerous_deserialization=True,
-            )
-        except Exception:
-            logger.error(
-                f"Error loading FAISS index from {self.vector_store_path}",
-                exc_info=True,
-            )
-            return [
-                {
-                    "error": "Failed to load FAISS index",
-                }
-            ]
-
-        try:
-            retrieved_docs_with_scores = vector_store.similarity_search_with_score(
-                query_or_keywords, k=effective_k
-            )
-        except Exception:
-            logger.error("Error during similarity search", exc_info=True)
-            return [
-                {
-                    "error": "Error during similarity search",
-                }
-            ]
-
-        output_excerpts: list[dict[str, Any]] = []
-        if not retrieved_docs_with_scores:
-            logger.info("No relevant results found for query.")
+        if vector_store.index is None or vector_store.index.ntotal == 0:
+            logger.warning("L'index FAISS à %s est vide.", self.vector_store_path)
             return []
 
-        for doc, score in retrieved_docs_with_scores:
+        try:
+            retrieved_docs = vector_store.similarity_search_with_score(
+                query_or_keywords, k=effective_k
+            )
+        except Exception as e:
+            logger.error(
+                "Erreur lors de la recherche de similarité : %s", e, exc_info=True
+            )
+            return [{"error": "Erreur recherche similarité", "details": str(e)}]
+
+        output_excerpts: list[dict[str, Any]] = []
+        if not retrieved_docs:
+            logger.info("Aucun résultat pertinent trouvé pour la requête.")
+            return []
+        for doc, score in retrieved_docs:
             output_excerpts.append(
                 {
                     "text": doc.page_content,
@@ -114,16 +124,16 @@ class JournalContextRetrieverTool(BaseTool):
                     "score": float(score),
                 }
             )
-        logger.info(f"Retrieved {len(output_excerpts)} excerpts.")
+        logger.info("Récupéré %d extraits.", len(output_excerpts))
         return output_excerpts
 
     async def _arun(
-        self, query_or_keywords: str, k_retrieval_count: int | None = 3
+        self, query_or_keywords: str, k_retrieval_count: int | None = None
     ) -> list[dict[str, Any]]:
-        logger.debug(
-            f"Async call to _arun, deferring to sync _run for: '{query_or_keywords}'"
+        logger.warning(
+            "L'exécution asynchrone de JournalContextRetrieverTool "
+            "appelle la version synchrone."
         )
         return self._run(
-            query_or_keywords=query_or_keywords,
-            k_retrieval_count=k_retrieval_count,
+            query_or_keywords=query_or_keywords, k_retrieval_count=k_retrieval_count
         )

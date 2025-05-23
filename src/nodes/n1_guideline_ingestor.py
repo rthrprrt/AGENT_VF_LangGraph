@@ -2,11 +2,11 @@
 import logging
 import re
 import traceback
-from typing import Any, Dict # Utilisation de Dict pour compatibilité si AgentState l'utilise encore
+from typing import Any
 
 from pypdf import PdfReader
 
-from src.state import AgentState # Assurez-vous que AgentState utilise dict, list, etc.
+from src.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,11 @@ SECTION_KEYWORDS = [
 
 FORMATTING_PATTERNS = {
     "font_name_size": r"(Times New Roman)\s*(\d+)",
-    # Nouvelle tentative pour la regex :
-    "line_spacing": r"interligne de\s*([\d]+\.[\d]+|[\d]+)\s*\.?", # Capture un float (ex: 1.5) ou un int (ex: 2), suivi d'un point optionnel
-    "citation_style": r"style de citation cohérent\s*\((APA ou Harvard)\)",
+    "line_spacing": r"interligne de\s*([\d]+\.[\d]+|[\d]+)\s*\.?",
+    "citation_style": (r"style de citation cohérent\s*\((APA ou Harvard)\)"),
     "min_pages": r"minimum\s*(\d+)\s*pages",
 }
+
 
 def _parse_formatting_rules(text: str) -> dict[str, Any]:
     """Extracts formatting rules from text using regex patterns."""
@@ -38,53 +38,55 @@ def _parse_formatting_rules(text: str) -> dict[str, Any]:
 
     spacing_match = re.search(FORMATTING_PATTERNS["line_spacing"], text, re.IGNORECASE)
     if spacing_match:
-        captured_spacing = spacing_match.group(1) # Ce groupe devrait maintenant être "1.5" ou "1" ou "2" etc.
+        captured_spacing = spacing_match.group(1)
         try:
             rules["line_spacing"] = float(captured_spacing)
         except ValueError as e:
             logger.warning(
-                "Could not convert spacing value '%s' to float: %s",
-                captured_spacing, e
+                "Could not convert spacing value '%s' to float: %s", captured_spacing, e
             )
 
     citation_match = re.search(
         FORMATTING_PATTERNS["citation_style"], text, re.IGNORECASE
     )
     if citation_match:
-        rules["citation_style"] = citation_match.group(1).split(" ou ")[0].strip()
+        style_components = citation_match.group(1).split(" ou ")
+        rules["citation_style"] = style_components[0].strip()
 
     pages_match = re.search(FORMATTING_PATTERNS["min_pages"], text, re.IGNORECASE)
     if pages_match:
         rules["min_pages"] = int(pages_match.group(1))
 
-    if "justifi" in text.lower(): # Heuristique pour justification
+    if "justifi" in text.lower():
         rules["text_justification"] = True
     return rules
 
 
 def _add_section_if_exists(
     structure: dict[str, str], title: str | None, content: list[str]
-): # Pydantic V2 utilise dict, list
-    """Helper to add content to structure if title and content exist."""
+):
+    """Helper: adds content to structure if title and content exist."""
     if title and content:
         structure[title] = "\n".join(content).strip()
 
+
 def _find_section_keyword_in_line(line: str) -> str | None:
-    """Helper to find a section keyword in a line."""
-    if len(line.strip()) < 50: # Les titres sont généralement courts
+    """Helper: finds a section keyword in a line."""
+    if len(line.strip()) < 50:
         for keyword in SECTION_KEYWORDS:
-            if keyword.lower() in line.lower(): # Recherche insensible à la casse
+            if keyword.lower() in line.lower():
                 return keyword
     return None
 
-def _parse_structured_content(text: str) -> dict[str, str]: # Pydantic V2 utilise dict
+
+def _parse_structured_content(text: str) -> dict[str, str]:
     """
     Extracts thesis sections and their high-level requirements.
 
-    Refactored to reduce complexity (C901).
+    Refactored to reduce complexity.
     """
-    structure: dict[str, str] = {} # Pydantic V2 utilise dict
-    current_section_content: list[str] = [] # Pydantic V2 utilise list
+    structure: dict[str, str] = {}
+    current_section_content: list[str] = []
     current_section_title: str | None = None
 
     lines = text.splitlines()
@@ -97,7 +99,8 @@ def _parse_structured_content(text: str) -> dict[str, str]: # Pydantic V2 utilis
                 structure, current_section_title, current_section_content
             )
             current_section_title = found_keyword
-            current_section_content = [stripped_line] # Inclut la ligne du titre
+            # Ligne 120 (potentiellement E501, coupée si nécessaire)
+            current_section_content = [stripped_line]  # Inclut la ligne du titre
         elif current_section_title:
             current_section_content.append(line)
 
@@ -129,7 +132,7 @@ def ingest_school_guidelines(state: AgentState) -> AgentState:
         reader = PdfReader(state.school_guidelines_path)
         for page in reader.pages:
             page_text = page.extract_text()
-            if page_text:  # S'assurer que du texte a été extrait
+            if page_text:
                 raw_text += page_text + "\n"
         state.school_guidelines_raw_text = raw_text.strip()
         logger.info(
@@ -138,22 +141,18 @@ def ingest_school_guidelines(state: AgentState) -> AgentState:
 
         if not raw_text.strip():
             logger.warning("  No text content extracted from the PDF.")
-            state.error_message = "No text content extracted from the PDF guidelines."
-            # Il est important de retourner l'état ici si aucun texte n'est extrait
-            # pour éviter des erreurs de parsing sur une chaîne vide plus loin.
+            state.error_message = "No text content extracted from PDF guidelines."
             return state
 
-
         state.school_guidelines_formatting = _parse_formatting_rules(raw_text)
-        logger.info(
-            "  Parsed formatting rules: %s", state.school_guidelines_formatting
-        )
+        logger.info("  Parsed formatting rules: %s", state.school_guidelines_formatting)
 
         state.school_guidelines_structured = _parse_structured_content(raw_text)
-        logger.info(
-            "  Parsed structured content (sections found): %s",
-            list(state.school_guidelines_structured.keys() if state.school_guidelines_structured else []),
-        )
+        keys_found = []
+        if state.school_guidelines_structured:
+            keys_found = list(state.school_guidelines_structured.keys())
+        # Ligne 163 (potentiellement E501, log sur plusieurs lignes)
+        logger.info("  Parsed structured content (sections found): %s", keys_found)
 
         state.current_operation_message = "School guidelines ingested and parsed."
         state.last_successful_node = "N1_GuidelineIngestorNode"
@@ -166,7 +165,7 @@ def ingest_school_guidelines(state: AgentState) -> AgentState:
     except Exception as e:
         state.error_message = f"Error during guidelines ingestion: {str(e)}"
         state.error_details = traceback.format_exc()
-        logger.error(state.error_message, exc_info=True)
+        logger.error("Error during guidelines ingestion: %s", e, exc_info=True)
 
     logger.info("N1: Guideline ingestion complete.")
     return state
