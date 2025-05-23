@@ -1,66 +1,81 @@
-from typing import List, Dict, Optional, Any
+# src/state.py
+from typing import Any  # UP035 a dû être corrigé par ruff --fix
+
 from pydantic import BaseModel, Field
 
+
 class SectionDetail(BaseModel):
+    """Represents the details and content of a single thesis section."""
+
     title: str
-    original_requirements: str # Extrait des directives Epitech
-    student_experience_keywords: List[str] = Field(default_factory=list)
-    retrieved_journal_excerpts: List[Dict[str, Any]] = Field(default_factory=list)
-    anonymized_context_for_llm: Optional[str] = None
-    draft_v1: Optional[str] = None
-    critique_v1: Optional[str] = None
-    refined_draft: Optional[str] = None
-    human_feedback: Optional[str] = None
-    final_content: Optional[str] = None
-    status: str = "pending" # e.g., pending, context_retrieved, drafted, critiqued, human_review_pending, approved
+    original_requirements: str  # Extrait des directives Epitech
+    student_experience_keywords: list[str] = Field(default_factory=list)
+    retrieved_journal_excerpts: list[dict[str, Any]] = Field(default_factory=list)
+    # Correction E501 (ligne 17): Commentaire coupé
+    anonymized_context_for_llm: str | None = None  # Contexte pour le LLM
+    draft_v1: str | None = None
+    critique_v1: str | None = None
+    refined_draft: str | None = None
+    human_feedback: str | None = None
+    final_content: str | None = None
+    status: str = "pending"  # e.g., pending, context_retrieved, drafted
+
 
 class AgentState(BaseModel):
+    """Defines the overall state of the thesis generation agent."""
+
     # Input & Configuration
-    school_guidelines_path: Optional[str] = None
-    journal_path: Optional[str] = None # Path to the journal file(s) or directory
+    school_guidelines_path: str | None = None
+    journal_path: str | None = None
     output_directory: str = "outputs/theses"
-    llm_model_name: str = "gemma2:9b" # Default, peut être surchargé par config
-    embedding_model_name: str = "fastembed/BAAI/bge-small-en-v1.5" # Default FastEmbed model
+    llm_model_name: str = "gemma2:9b"
+    embedding_model_name: str = "fastembed/BAAI/bge-small-en-v1.5"
 
     # Processed Inputs
-    school_guidelines_raw_text: Optional[str] = None
-    school_guidelines_structured: Optional[Dict[str, Any]] = None
-    school_guidelines_formatting: Optional[Dict[str, Any]] = None
+    school_guidelines_raw_text: str | None = None
+    school_guidelines_structured: dict[str, Any] | None = None
+    school_guidelines_formatting: dict[str, Any] | None = None
 
-    raw_journal_entries: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
-    anonymization_map: Dict[str, str] = Field(default_factory=dict)
+    raw_journal_entries: list[dict[str, Any]] | None = Field(default_factory=list)
+    anonymization_map: dict[str, str] = Field(default_factory=dict)
+    # Correction E501 (ligne 38): Chaîne multiligne
     user_persona: str = (
-        "un(e) étudiant(e) en dernière année de Master spécialisé en IA et transformation d'entreprise, "
-        "réalisant son alternance en tant que chef de projet IA (AIPO) dans une foncière immobilière."
+        "un(e) étudiant(e) en dernière année de Master spécialisé en IA et "
+        "transformation d'entreprise, réalisant son alternance en tant que "
+        "chef de projet IA (AIPO) dans une foncière immobilière."
     )
-    vector_store_path: Optional[str] = "data/processed/vector_store"
+    # Correction E501 (ligne 39): Chemin coupé
+    vector_store_path: str | None = "data/processed/vector_store"
 
     # Thesis Structure & Content
-    thesis_outline: List[SectionDetail] = Field(default_factory=list)
+    thesis_outline: list[SectionDetail] = Field(default_factory=list)
     current_section_index: int = 0
-    
+
     # Bibliography
-    cited_sources_raw: List[str] = Field(default_factory=list)
-    bibliography_formatted: Optional[str] = None
+    cited_sources_raw: list[str] = Field(default_factory=list)
+    bibliography_formatted: str | None = None
 
     # Final Output
-    compiled_thesis_sections: Dict[str, str] = Field(default_factory=dict) # section_title -> final_content
-    final_thesis_document_path: Optional[str] = None
-    
-    # Operational & Error Handling
-    current_operation_message: Optional[str] = None
-    error_message: Optional[str] = None
-    error_details: Optional[str] = None
-    last_successful_node: Optional[str] = None
-    retry_count: int = 0
+    # Correction E501 (ligne 73 dans le log, ici peut varier): Commentaire coupé
+    compiled_thesis_sections: dict[str, str] = Field(
+        default_factory=dict
+    )  # titre -> contenu
+    final_thesis_document_path: str | None = None
 
-    # Tool specific states (if needed, or managed by tool outputs)
-    # e.g., rag_queries_executed: List[str] = Field(default_factory=list)
+    # Operational & Error Handling
+    current_operation_message: str | None = None
+    error_message: str | None = None
+    error_details: str | None = None
+    last_successful_node: str | None = None
+    retry_count: int = 0
 
     # For HITL
     human_intervention_needed: bool = False
-    human_intervention_message: Optional[str] = None
-    human_intervention_data: Optional[Any] = None # Data to present to human
+    human_intervention_message: str | None = None
+    human_intervention_data: Any | None = None
 
     class Config:
-        arbitrary_types_allowed = True # If you plan to use non-pydantic types like Langchain objects directly in state
+        """Pydantic model configuration options."""
+
+        # Correction D106: Ajout d'une docstring
+        arbitrary_types_allowed = True

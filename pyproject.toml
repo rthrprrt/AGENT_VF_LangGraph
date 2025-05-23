@@ -40,8 +40,12 @@ ipykernel = "^6.29.4"
 
 [tool.ruff]
 line-length = 88
-select = ["E", "F", "W", "I", "UP", "C90", "N", "D", "S", "BLE", "A", "COM", "PT"]
-ignore = ["D203", "D212", "D100", "D101", "D102", "D103", "D104", "D107", "COM812"]
+# select = ["E", "F", "W", "I", "UP", "C90", "N", "D", "S", "BLE", "A", "COM", "PT"] # Ancienne position
+# ignore = ["D203", "D212", "D100", "D101", "D102", "D103", "D104", "D107", "COM812"] # Ancienne position
+
+[tool.ruff.lint] # Nouvelle section
+select = ["E", "F", "W", "I", "UP", "C90", "N", "D", "S", "BLE", "A", "COM", "PT"] # Nouvelle position
+ignore = ["D203", "D212", "D100", "D101", "D102", "D103", "D104", "D107", "COM812"] # Nouvelle position
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
