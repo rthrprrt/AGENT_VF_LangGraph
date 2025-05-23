@@ -1,25 +1,21 @@
-# tests/test_initial_setup.py
-# import pytest # F401 - Supprimé car non utilisé directement ici
-
-from src.config import settings # settings en premier (import de votre code)
+# Imports triés : d'abord les modules de votre projet (src)
+from src.config import settings
 from src.nodes.n0_initial_setup import initialize_agent_settings
 from src.state import AgentState
 
 
 def test_initialize_agent_settings_populates_defaults():
-    """
-    Tests if initialize_agent_settings correctly populates the state
-    with default paths and model names.
-    """
-    # D205 corrigé avec une ligne vide
+    """Tests if initialize_agent_settings correctly populates defaults."""
+    # Pas besoin d'une ligne vide ici si la docstring est sur une seule ligne
     initial_state = AgentState()
 
     updated_state = initialize_agent_settings(initial_state)
 
-    # E501 corrigé en coupant la ligne d'assert
+    # Les asserts sont corrects pour les tests. S101 sera ignoré via pyproject.toml.
+    # Lignes coupées pour respecter la longueur maximale si nécessaire,
+    # mais les asserts simples tiennent généralement bien.
     assert (
-        updated_state.school_guidelines_path
-        == settings.default_school_guidelines_path
+        updated_state.school_guidelines_path == settings.default_school_guidelines_path
     )
     assert updated_state.journal_path == settings.default_journal_path
     assert updated_state.output_directory == settings.default_output_directory
@@ -31,11 +27,7 @@ def test_initialize_agent_settings_populates_defaults():
 
 
 def test_initialize_agent_settings_preserves_overrides():
-    """
-    Tests if initialize_agent_settings preserves paths if they are
-    already set in the initial state.
-    """
-    # D205 corrigé avec une ligne vide
+    """Tests if initialize_agent_settings preserves overridden paths."""
     custom_guidelines_path = "custom/path/guidelines.pdf"
     custom_journal_path = "custom/journal/"
     initial_state = AgentState(
@@ -47,5 +39,9 @@ def test_initialize_agent_settings_preserves_overrides():
 
     assert updated_state.school_guidelines_path == custom_guidelines_path
     assert updated_state.journal_path == custom_journal_path
+    # Vérifie aussi qu'un champ non surchargé prend bien la valeur par défaut
     assert updated_state.output_directory == settings.default_output_directory
-# W292 sera corrigé par ruff format . en ajoutant une newline à la fin
+
+
+# Assurez-vous que ce fichier se termine par une nouvelle ligne (W292).
+# `ruff format .` devrait s'en charger.

@@ -47,6 +47,17 @@ line-length = 88
 select = ["E", "F", "W", "I", "UP", "C90", "N", "D", "S", "BLE", "A", "COM", "PT"] # Nouvelle position
 ignore = ["D203", "D212", "D100", "D101", "D102", "D103", "D104", "D107", "COM812"] # Nouvelle position
 
+[tool.ruff.lint.per-file-ignores]
+    "tests/*" = [
+        "S101", # Ignore "Use of `assert` detected"
+        "D100", # Ignore "Missing docstring in public module"
+        "D101", # Ignore "Missing docstring in public class" (si vous avez des classes de test)
+        "D102", # Ignore "Missing docstring in public method" (si vous avez des méthodes dans des classes de test)
+        "D103", # Ignore "Missing docstring in public function" (pour les fonctions de test)
+        "D104", # Ignore "Missing docstring in public package" (pour __init__.py dans tests/)
+    ]
+    # Si vos tests sont dans des sous-dossiers de tests/, utilisez "tests/**/*"
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
