@@ -49,3 +49,7 @@ ignore = ["D203", "D212", "D100", "D101", "D102", "D103", "D104", "D107", "COM81
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"] # Ajoute 'src' au PYTHONPATH pour les tests
+testpaths = ["tests"] # Dit à pytest où chercher les tests
