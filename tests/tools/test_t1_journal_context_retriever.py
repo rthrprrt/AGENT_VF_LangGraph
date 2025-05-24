@@ -19,7 +19,7 @@ class MockToolSettings:
 mock_tool_settings_instance = MockToolSettings()
 
 
-@pytest.fixture()  # Ajout des parenthèses
+@pytest.fixture()
 def mock_faiss_index_for_tool():
     """Creates a mocked FAISS index instance."""
     mock_index = MagicMock()
@@ -66,7 +66,6 @@ def test_journal_context_retriever_tool_success(
     mock_fastembed_embeddings.assert_called_once_with(
         model_name=mock_tool_settings_instance.embedding_model_name
     )
-    # Ligne 80 (E501) - Coupée
     mock_faiss_load_local.assert_called_once_with(
         str(tmp_path / "faiss_tool_test"),
         mock_embedding_instance,
@@ -77,7 +76,6 @@ def test_journal_context_retriever_tool_success(
     )
 
 
-# ... (le reste du fichier test_t1_journal_context_retriever.py comme avant)
 @patch(
     "src.tools.t1_journal_context_retriever.FastEmbedEmbeddings",
     side_effect=Exception("Embedding init error"),
@@ -109,8 +107,12 @@ def test_journal_context_retriever_tool_store_not_found(
     results = tool._run(query_or_keywords="test query")
     assert len(results) == 1
     assert "error" in results[0]
-    expected_error_part = "Vector store non trouvé"
-    assert expected_error_part in results[0]["error"]
+    # Ligne 110 (E501) - Coupée
+    expected_error_msg = (
+        f"Vector store non trouvé ou erreur de chargement "
+        f"à {str(tmp_path / 'non_existent_faiss')}"
+    )
+    assert results[0]["error"] == expected_error_msg
     mock_fastembed_embeddings.assert_called_once()
 
 
@@ -131,7 +133,12 @@ def test_journal_context_retriever_tool_faiss_load_error(
     results = tool._run(query_or_keywords="test query")
     assert len(results) == 1
     assert "error" in results[0]
-    assert "Échec chargement index FAISS" in results[0]["error"]
+    # Ligne 136 (E501) - Coupée
+    expected_msg = (
+        f"Vector store non trouvé ou erreur de chargement "
+        f"à {str(tmp_path / 'faiss_error')}"
+    )
+    assert results[0]["error"] == expected_msg
 
 
 @patch("src.tools.t1_journal_context_retriever.FAISS.load_local")

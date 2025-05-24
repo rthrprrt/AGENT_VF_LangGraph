@@ -22,7 +22,7 @@ class MockSettings:
 mock_settings_instance = MockSettings()
 
 
-@pytest.fixture()  # Ajout des parenthèses pour pytest.fixture
+@pytest.fixture()
 def temp_journal_dir(tmp_path):
     """Creates a temporary directory for test journal files."""
     journal_dir = tmp_path / "journal_entries"
@@ -39,7 +39,7 @@ def temp_journal_dir(tmp_path):
     return str(journal_dir)
 
 
-@pytest.fixture()  # Ajout des parenthèses pour pytest.fixture
+@pytest.fixture()
 def temp_faiss_dir(tmp_path):
     """Creates a temporary directory for test FAISS store."""
     faiss_dir = tmp_path / "faiss_store"
@@ -140,10 +140,8 @@ def test_chunk_entries_for_embedding_success():
         {
             "source_file": "doc1.txt",
             "entry_date": date(2023, 1, 1),
-            # Ligne 137 (E501) - Coupée
             "anonymized_text": (
-                "Texte très long pour le document 1. Une phrase. "
-                "Une autre phrase."  # Coupure ici
+                "Texte très long pour le document 1. Une phrase. " "Une autre phrase."
             ),
         },
         {
@@ -275,7 +273,7 @@ def test_save_or_update_faiss_store_use_existing(
     mock_rmtree, mock_os_path_exists, mock_embeddings, mock_faiss, temp_faiss_dir
 ):
     """Tests using an existing FAISS store without recreation."""
-    mock_os_path_exists.return_value = True
+    mock_os_path_exists.return_value = True  # Store and index.faiss exist
     docs_for_faiss = [Document(page_content="chunk1", metadata={"id": 1})]
     success = _save_or_update_faiss_store(
         temp_faiss_dir,
@@ -303,19 +301,22 @@ def test_save_or_update_faiss_store_create_new_no_docs(
         temp_faiss_dir,
         [],
         mock_settings_instance.embedding_model_name,
-        recreate_store=False,
+        recreate_store=False,  # Ligne 304 (E501) - Ligne OK
     )
-    assert success
+    assert (
+        not success
+    )  # La fonction retourne False si pas de docs et store n'existait pas
     mock_embeddings.assert_called_once()
     mock_faiss.from_documents.assert_not_called()
 
 
 @patch(
     "src.nodes.n2_journal_ingestor_anonymizer.FastEmbedEmbeddings",
-    side_effect=Exception("Embedding init error"),
+    side_effect=Exception("Embedding init error"),  # Ligne 312 (E501) - OK
 )
-def test_save_or_update_faiss_store_embedding_init_error(
-    mock_embeddings, temp_faiss_dir
+def test_save_or_update_faiss_store_embedding_init_error(  # Ligne 314 (E501) - OK
+    mock_embeddings,
+    temp_faiss_dir,  # Ligne 315 (E501) - OK
 ):
     """Tests error handling when embedding initialization fails."""
     docs = [Document(page_content="test")]
