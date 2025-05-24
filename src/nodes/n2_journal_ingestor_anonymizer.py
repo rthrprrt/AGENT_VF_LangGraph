@@ -27,6 +27,7 @@ RawJournalEntryDict = dict[str, Any]
 ProcessedJournalEntryDict = dict[str, Any]
 
 
+# --- Fonctions LLM-RAG-Specialist ---
 def _parse_date_from_filename(filename: str) -> date | None:
     """Extracts date from filename if pattern YYYY-MM-DD is found."""
     match = re.search(r"(\d{4}-\d{2}-\d{2})", filename)
@@ -34,7 +35,6 @@ def _parse_date_from_filename(filename: str) -> date | None:
         try:
             return date.fromisoformat(match.group(1))
         except ValueError:
-            # Ligne 33 (E501) - log sur plusieurs lignes
             logger.warning(
                 "Format de date invalide dans nom de fichier %s. Date non définie.",
                 filename,
@@ -46,7 +46,6 @@ def _load_single_journal_file(
     file_path: str, filename: str
 ) -> RawJournalEntryDict | None:
     """Loads a single journal file (txt or docx)."""
-    # ... (corps de la fonction déjà corrigé pour C901, vérifier les E501 potentiels)
     entry_date_obj = _parse_date_from_filename(filename)
     raw_text_content = ""
     try:
@@ -73,7 +72,6 @@ def _load_single_journal_file(
     except OSError as e:
         logger.error("Erreur I/O chargement fichier %s: %s", filename, e)
     except Exception as e:
-        # Ligne 66 (E501) - log sur plusieurs lignes
         logger.error(
             "Erreur générique chargement fichier %s: %s", filename, e, exc_info=True
         )
@@ -81,14 +79,18 @@ def _load_single_journal_file(
 
 
 def _load_raw_journal_entries(journal_path: str) -> list[RawJournalEntryDict]:
-    """Loads raw content from .txt and .docx files in journal_path."""
+    """
+    Loads raw content from .txt and .docx files in journal_path.
+
+    Refactored to reduce complexity.
+    """
     entries: list[RawJournalEntryDict] = []
-    # ... (corps de la fonction déjà corrigé pour C901)
     if not os.path.isdir(journal_path):
         logger.error(
             "Le chemin du journal %s n'est pas un répertoire valide.", journal_path
         )
         return entries
+
     for filename in os.listdir(journal_path):
         file_path = os.path.join(journal_path, filename)
         entry = _load_single_journal_file(file_path, filename)
@@ -102,7 +104,6 @@ def _chunk_entries_for_embedding(
     processed_entries: list[ProcessedJournalEntryDict],
 ) -> list[DocumentForFAISS]:
     """Chunks processed entries and prepares LangChain Documents for FAISS."""
-    # ... (corps de la fonction inchangé, les logs longs sont déjà sur plusieurs lignes)
     logger.info("Démarrage du chunking des entrées traitées...")
     chunk_size = 1500
     chunk_overlap = 200
@@ -116,21 +117,20 @@ def _chunk_entries_for_embedding(
     documents_for_faiss: list[DocumentForFAISS] = []
     for entry_idx, entry in enumerate(processed_entries):
         text_to_chunk = entry.get("anonymized_text")
+        source_file_info = entry.get("source_file", f"Inconnu_{entry_idx}")
         if not text_to_chunk:
-            source_file_info = entry.get("source_file", f"Inconnu_{entry_idx}")
             logger.warning(
                 "Aucun 'anonymized_text' pour l'entrée source: %s. Passage.",
                 source_file_info,
             )
             continue
-        source_file = entry.get("source_file", f"doc_inconnu_{entry_idx}")
         entry_date_obj = entry.get("entry_date")
         journal_date_str = entry_date_obj.isoformat() if entry_date_obj else None
         chunks = text_splitter.split_text(text_to_chunk)
         for i, chunk_text in enumerate(chunks):
             chunk_id = str(uuid.uuid4())
             metadata = {
-                "source_document": source_file,
+                "source_document": source_file_info,
                 "journal_date": journal_date_str,
                 "chunk_index": i,
                 "chunk_id": chunk_id,
@@ -149,7 +149,6 @@ def _save_or_update_faiss_store(
     recreate_store: bool,
 ) -> bool:
     """Creates or updates the FAISS vector store."""
-    # ... (corps de la fonction inchangé, les logs longs sont déjà sur plusieurs lignes)
     logger.info("Gestion du vector store FAISS à : %s", vector_store_path)
     try:
         embeddings = FastEmbedEmbeddings(model_name=embedding_model_name)
@@ -161,8 +160,10 @@ def _save_or_update_faiss_store(
             exc_info=True,
         )
         return False
+
     vector_store_dir = vector_store_path
     index_file_path = os.path.join(vector_store_dir, "index.faiss")
+
     if recreate_store and os.path.exists(vector_store_dir):
         logger.info(
             "Recréation. Suppression du vector store existant à : %s", vector_store_dir
@@ -182,11 +183,14 @@ def _save_or_update_faiss_store(
                 exc_info=True,
             )
             return False
+
     if not os.path.exists(index_file_path) or recreate_store:
         if not documents_for_faiss:
-            logger.warning("Aucun document à indexer, vector store non (re)créé.")
+            logger.warning(
+                "Aucun document à indexer. Vector store non (re)créé ou vide."
+            )
             os.makedirs(vector_store_dir, exist_ok=True)
-            return True
+            return True if recreate_store else False
         logger.info("Création d'un nouveau vector store FAISS...")
         try:
             os.makedirs(vector_store_dir, exist_ok=True)
@@ -262,7 +266,6 @@ class TextSanitizationExpert:
             elif self.anonymization_map[key] != value and not self.anonymization_map[
                 key
             ].startswith("[Person_"):
-                # Ligne E501 potentielle, coupée
                 log_msg = (
                     f"Clash pour '{key}'. Priorité organigramme: "
                     f"'{value}' vs '{self.anonymization_map[key]}'"
@@ -311,8 +314,9 @@ class TextSanitizationExpert:
             "problème",
             "pire",
             "mauvais",
+            "énerve",
+            "ennuie",
         ]
-        # Ligne E501 potentielle (self.tone_keywords_strong_doubt), coupée
         self.tone_keywords_strong_doubt = [
             "ne me rassure pas",
             "pas sûr de",
@@ -331,11 +335,9 @@ class TextSanitizationExpert:
             return f"[Person_{chr(ord('A') + self.person_counter - 1)}]"
         elif entity_type == "company":
             self.company_counter += 1
-            # Ligne E501 potentielle, coupée
             return f"[External_Company_{chr(ord('A') + self.company_counter - 1)}]"
         elif entity_type == "project":
             self.project_counter += 1
-            # Ligne E501 potentielle, coupée
             return f"[Internal_Project_{chr(ord('A') + self.project_counter - 1)}]"
         return "[UNKNOWN_ENTITY]"
 
@@ -348,15 +350,13 @@ class TextSanitizationExpert:
             pattern = r"\b" + re.escape(key) + r"\b"
             if re.search(pattern, text, flags=re.IGNORECASE):
                 text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
-                if key not in self.anonymization_map:
+                if key not in self.anonymization_map:  # Mettre à jour la map d'instance
                     self.anonymization_map[key] = placeholder
-                    # Ligne E501 potentielle, coupée
                     logger.debug("Entité '%s' remplacée par '%s'", key, placeholder)
         return text
 
     def _apply_regex_project_replacements(self, text: str) -> str:
         """Applies regex-based project replacements."""
-        # ... (Logique déjà OK pour C901)
         project_replacements = []
         for match in self.regex_patterns["project"].finditer(text):
             project_name = match.group(0)
@@ -376,8 +376,8 @@ class TextSanitizationExpert:
             text = re.sub(pattern, placeholder, text, flags=re.IGNORECASE)
         return text
 
-    def _anonymize_text_single_entry(self, text: str) -> str:
-        """Anonymizes a single text entry."""
+    def _anonymize_text_single_entry_main_logic(self, text: str) -> str:
+        """Main logic for anonymizing a single text entry after init."""
         anonymized_text = text
         anonymized_text = self._apply_specific_replacements(
             anonymized_text, self.anonymization_map, self.sorted_org_chart_keys
@@ -389,6 +389,10 @@ class TextSanitizationExpert:
         )
         anonymized_text = self._apply_regex_project_replacements(anonymized_text)
         return anonymized_text
+
+    def _anonymize_text_single_entry(self, text: str) -> str:
+        """Anonymizes a single text entry (wrapper)."""
+        return self._anonymize_text_single_entry_main_logic(text)
 
     def _manage_tone_single_entry(self, text: str) -> tuple[list[dict[str, str]], bool]:
         """Manages tone for a single text entry, flagging issues."""
@@ -417,7 +421,7 @@ class TextSanitizationExpert:
             if not flagged and self.regex_personal_opinion.search(sentence):
                 exclusion_pattern = (
                     r"\b(?:Je|J\')\s+(?:suis|ai|vois|dois|peux|vais|sais|fus"
-                    r"|serai|saurai)\b"  # Coupé pour E501
+                    r"|serai|saurai)\b"
                 )
                 if not re.search(exclusion_pattern, sentence, re.IGNORECASE):
                     flagged = True
@@ -481,10 +485,7 @@ class TextSanitizationExpert:
 
 def journal_ingestor_anonymizer_node(state: AgentState) -> dict[str, Any]:
     """Orchestrates ingestion, anonymization, and vectorization of journal entries."""
-    # ... (corps de la fonction inchangé, les logs longs sont déjà sur plusieurs lignes)
-    logger.info(
-        "N2: Démarrage de l'ingestion, anonymisation et vectorisation du journal..."
-    )
+    logger.info("N2: Démarrage ingestion, anonymisation, vectorisation du journal...")
     updated_fields: dict[str, Any] = {"vector_store_initialized": False}
 
     if not state.journal_path:
@@ -506,13 +507,15 @@ def journal_ingestor_anonymizer_node(state: AgentState) -> dict[str, Any]:
         if not raw_journal_entry_dicts:
             logger.warning("Aucune entrée de journal brute n'a été chargée.")
         else:
-            # Ligne E501 potentielle, coupée
             logger.info("Chargé %d entrées brutes.", len(raw_journal_entry_dicts))
 
+        # Instancier l'expert et traiter les entrées
+        # La map d'anonymisation de l'état est passée pour être enrichie
         sanitization_expert = TextSanitizationExpert(state.anonymization_map.copy())
         processed_entry_dicts = sanitization_expert.process_entries(
-            raw_journal_entry_dicts
+            raw_journal_entry_dicts  # Utilise les dictionnaires Python bruts
         )
+        # Mettre à jour l'état avec les entrées traitées et la map enrichie
         updated_fields["raw_journal_entries"] = processed_entry_dicts
         updated_fields["anonymization_map"] = sanitization_expert.anonymization_map
         logger.info(
@@ -523,7 +526,6 @@ def journal_ingestor_anonymizer_node(state: AgentState) -> dict[str, Any]:
         if not documents_for_faiss:
             logger.warning("Aucun document généré pour FAISS après chunking.")
         else:
-            # Ligne E501 potentielle, coupée
             logger.info("Généré %d documents pour FAISS.", len(documents_for_faiss))
 
         vector_store_ok = _save_or_update_faiss_store(
@@ -536,17 +538,18 @@ def journal_ingestor_anonymizer_node(state: AgentState) -> dict[str, Any]:
 
         if vector_store_ok:
             logger.info("Traitement journal et config vector store réussis.")
-            updated_fields["current_operation_message"] = (
-                "Journal traité et vector store prêt."
-            )
+            msg = "Journal traité et vector store prêt."
+            updated_fields["current_operation_message"] = msg
         else:
             logger.error("Échec traitement journal ou config vector store.")
-            if not updated_fields.get("error_message"):
+            if not updated_fields.get(
+                "error_message"
+            ):  # Ne pas écraser une erreur précédente
                 updated_fields["error_message"] = "Échec de la config du vector store."
     except Exception as e:
         logger.error("N2: Erreur majeure: %s", e, exc_info=True)
         updated_fields["error_message"] = f"N2 Erreur non gérée: {str(e)}"
-        updated_fields["error_details"] = traceback.format_exc()
+        updated_fields["error_details"] = traceback.format_exc()  # Restauré
         updated_fields["vector_store_initialized"] = False
 
     updated_fields["last_successful_node"] = "N2_JournalIngestorAnonymizerNode"

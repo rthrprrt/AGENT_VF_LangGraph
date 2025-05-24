@@ -37,6 +37,7 @@ pytest = "^8.2.0"
 pytest-cov = ">=6.0.0"
 ruff = "^0.4.4"
 ipykernel = "^6.29.4"
+pytest-asyncio = "^0.23.0"
 
 [tool.ruff]
 line-length = 88
