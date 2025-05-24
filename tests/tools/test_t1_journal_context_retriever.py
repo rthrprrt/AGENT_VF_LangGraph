@@ -19,7 +19,7 @@ class MockToolSettings:
 mock_tool_settings_instance = MockToolSettings()
 
 
-@pytest.fixture()
+@pytest.fixture()  # Ajout des parenthèses
 def mock_faiss_index_for_tool():
     """Creates a mocked FAISS index instance."""
     mock_index = MagicMock()

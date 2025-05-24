@@ -22,7 +22,7 @@ class MockSettings:
 mock_settings_instance = MockSettings()
 
 
-@pytest.fixture()
+@pytest.fixture()  # Ajout des parenthèses pour pytest.fixture
 def temp_journal_dir(tmp_path):
     """Creates a temporary directory for test journal files."""
     journal_dir = tmp_path / "journal_entries"
@@ -39,7 +39,7 @@ def temp_journal_dir(tmp_path):
     return str(journal_dir)
 
 
-@pytest.fixture()
+@pytest.fixture()  # Ajout des parenthèses pour pytest.fixture
 def temp_faiss_dir(tmp_path):
     """Creates a temporary directory for test FAISS store."""
     faiss_dir = tmp_path / "faiss_store"
@@ -142,7 +142,8 @@ def test_chunk_entries_for_embedding_success():
             "entry_date": date(2023, 1, 1),
             # Ligne 137 (E501) - Coupée
             "anonymized_text": (
-                "Texte très long pour le document 1. " "Une phrase. Une autre phrase."
+                "Texte très long pour le document 1. Une phrase. "
+                "Une autre phrase."  # Coupure ici
             ),
         },
         {
@@ -158,7 +159,7 @@ def test_chunk_entries_for_embedding_success():
         d for d in documents if d.metadata["source_document"] == "doc1.txt"
     )
     expected_content_doc1 = (
-        "Texte très long pour le document 1. Une phrase. Une autre phrase."
+        "Texte très long pour le document 1. Une phrase. " "Une autre phrase."
     )
     assert doc1_chunk1.page_content == expected_content_doc1
     assert "chunk_id" in doc1_chunk1.metadata
@@ -189,7 +190,6 @@ def test_chunk_entries_for_embedding_empty_entries():
     assert len(documents) == 0
 
 
-# ... (le reste du fichier test_n2_rag_parts.py comme avant)
 @patch("src.nodes.n2_journal_ingestor_anonymizer.FAISS")
 @patch("src.nodes.n2_journal_ingestor_anonymizer.FastEmbedEmbeddings")
 @patch("src.nodes.n2_journal_ingestor_anonymizer.os.path.exists")
