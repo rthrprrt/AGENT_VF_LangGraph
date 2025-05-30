@@ -1,0 +1,113 @@
+2024-2025
+1
+Mission Professionnelle
+Digi5
+Ce document retrace la méthodologie du mémoire de Mission Professionnelle, qui contribue à la
+validation du titre RNCP 35284 Expert en management des systèmes d'information.
+https://www.francecompetences.fr/recherche/rncp/35284/
+La Mission Professionnelle vise à démontrer votre capacité à prendre du recul sur votre rôle en entreprise,
+à auto-évaluer votre évolution et à identifier vos axes de progression.
+Objectifs pédagogiques du mémoire Mission Professionnelle
+• Développer son identité professionnelle en aLinant son appétence par typologie de mission.
+• Appréhender une fonction dans le périmètre de l’expertise métier exercée.
+• Confronter les techniques abordées lors des modules et des projets à Epitech Digital School à la
+réalité professionnelle.
+• S’approprier les techniques professionnelles acquises lors des modules de tronc commun et les
+appliquer.
+• S’approprier des techniques professionnelles acquises lors des modules et projets d’expertise et
+les appliquer.
+• Gérer et suivre des dossiers en autonomie.
+• L’acquisition d’une vision globale d’une fonction.
+• Conception, mise en œuvre et pilotage.
+• Gestion et suivi de dossiers en autonomie.
+• Participation à une dynamique collective.
+• Mesure et suivi des actions, reporting.
+Compétences opérationnelles visées
+• Analyse des besoins : Capacité à évaluer et à analyser les besoins en systèmes d'information des
+entreprises pour proposer des solutions adaptées.
+• Conception de systèmes : Compétence dans la conception et la mise en œuvre de systèmes
+d'information qui répondent aux exigences spécifiques de l'entreprise.
+• Gestion de projets : Aptitude à planifier, à coordonner et à gérer des projets de systèmes
+d'information, en veillant à leur bonne exécution dans le respect des délais et des budgets.
+• Maintenance et évolution des systèmes : Capacité à assurer la maintenance et l'évolution des
+systèmes pour accompagner le développement de l'entreprise et répondre aux changements
+technologiques.
+• Assistance et formation des utilisateurs : Compétence pour former et assister les utilisateurs
+des systèmes, garantissant ainsi leur eLicacité et leur adaptation aux besoins des utilisateurs.
+Ces compétences sont essentielles pour les professionnels dans le domaine du management des
+systèmes d'information, leur permettant de soutenir les objectifs stratégiques des organisations à travers
+la technologie.
+2024-2025
+2
+1. Introduction
+Décrivez l'entreprise, le secteur d'activité, et le contexte dans lequel la mission s'est déroulée. Il est
+attendu une analyse fine de l’entreprise, de son organigramme, de son business model, de son
+positionnement, de son offre de produit et/ou services, de ses concurrents et de sa stratégie de
+développement.
+Clarifiez les objectifs de votre mémoire, en lien avec les compétences clés du titre RNCP 35284 (vous
+n’êtes pas forcément concerné par l’ensemble des blocs de compétences, qui sont tous abordés durant
+votre formation) et les objectifs de votre mission professionnelle.
+2. Description de la mission
+Expliquez votre fiche de poste, les tâches réalisées, les responsabilités assumées et les projets auxquels
+vous avez participé.
+Décrivez votre position et votre rôle au sein de l'équipe ou du projet. Décrivez les process dans lesquels
+vous intervenez, précisez les missions réalisées et vos initiatives.
+3. Analyse des compétences
+Discutez des compétences clés que vous avez développées ou améliorées au cours de votre mission.
+Reliez ces compétences aux exigences du titre RNCP.
+Montrez comment vous avez appliqué les connaissances acquises lors de votre formation à des situations
+réelles et complexes en milieu professionnel.
+4. Évaluation de la performance
+Analysez votre performance en utilisant des exemples spécifiques et des feedbacks reçus.
+Réalisez une auto-évaluation critique en remplissant sur votre portfolio de compétences, que vous
+présenterez au jury.
+5. Réflexion personnelle et professionnelle
+Réfléchissez sur votre intégration dans l'entreprise, l'impact de votre travail et votre évolution personnelle.
+Identifiez les domaines d'amélioration et les compétences à développer pour votre future carrière.
+6. Conclusion
+• Synthèse des apprentissages : Résumez ce que la mission vous a apporté en termes de
+compétences, de connaissances, et de développement personnel.
+• Implications pour votre carrière future : Discutez de la manière dont cette expérience a préparé
+ou orienté votre trajectoire professionnelle.
+2024-2025
+3
+7. Annexes
+Incluez tous les documents pertinents qui appuient votre analyse et vos conclusions (par exemple :
+rapports de projet, évaluations de performance, bilan annuel, etc.).
+Vous y incluez notamment, à jour :
+ITEM
+CV Photo
+Parcours professionnel 
+Formations et certifications
+Langues
+QR code + lien vers votre Book
+QR code + lien vers votre Linkedin
+BOOK Réalisations
+LINKEDIN Résumé / Présentation
+Articles et activités
+Compétences et recommandations
+Format et Présentation
+• Longueur : Le mémoire doit contenir au minimum 30 pages hors annexes.
+• Mise en page : Utilisez une police claire et adaptée (Times New Roman 12) avec un interligne de
+1.5. Justifiez le texte et assurez-vous que la mise en page est propre et professionnelle.
+• Citations et bibliographie : Suivez un style de citation cohérent (APA ou Harvard).
+Soutenance : 10’ de soutenance + 5’ + 15’ questions & réponses
+Préparation à la soutenance : Préparez une présentation claire de votre Mission Professionnelle, mettant
+en avant les points clés et les contributions principales de votre mission.
+Déroulement de la soutenance : Vous présenterez votre travail devant un jury composé de votre tuteur de
+stage ou d'alternance, d'un professionnel minimum, et d'un représentant académique de l'école. L’oral
+sera structuré autour :
+o En 10’ : d’une présentation de la mission longue : analyse de la mission (contexte, objectifs,
+réalisations) ; apports personnels (savoir-faire et savoir être) ; enjeux et perspectives de cette
+mission à court terme (1er emploi).
+o En 5’ : de la présentation du profil professionnel (ex. : profil LinkedIn + book) : visibilité des points
+forts et des compétences, créativité de la présentation, présence éventuelle de
+recommandations.
+- Les 10 points forts de votre profil
+- Les 10 compétences ou situations qui sont vos axes d’amélioration
+o En 15’ : d’un temps d’échange sur l’autoévaluation de vos compétences, à partir de votre plan de
+compétences final saisi en auto-évaluation avant le 30 mai.
+L’oral sera complété par des questions du jury.
+Cette méthodologie vise à structurer votre mémoire de mission professionnelle de manière à répondre aux
+exigences du titre RNCP et à démontrer efficacement votre capacité à intégrer et à appliquer les
+compétences professionnelles dans un contexte réel.

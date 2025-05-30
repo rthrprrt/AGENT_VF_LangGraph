@@ -1,205 +1,245 @@
-# src/nodes/n8_human_review_hitl_node.py
+# tests/nodes/test_n8_human_review_hitl_node.py
 import logging
-from typing import Any
+import unittest
 
-# PAS d'import de 'interrupt' ou 'Command' directement ici pour l'instant
-# L'interruption sera gérée par la logique du graphe et le checkpointer
-from src.state import AgentState, HumanReviewFeedback, SectionDetail, SectionStatus
+from src.config import settings
+
+# Garder MagicMock pour compatibilité si utilisé ailleurs
+from src.nodes.n8_human_review_hitl_node import N8HumanReviewHITLNode
+from src.state import (
+    AgentState,
+    CritiqueOutput,  # Importer CritiqueOutput
+    SectionDetail,
+    SectionStatus,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class N8HumanReviewHITLNode:
-    """
-    Node for Human-in-the-Loop review of a generated thesis section draft.
-    If no human response is present in the state for the current section,
-    it prepares for HITL by populating state.interrupt_payload.
-    If a response is present (in section.temporary_human_response), it processes it.
-    """
+class TestN8HumanReviewHITLNode(unittest.TestCase):
+    """Tests for the N8HumanReviewHITLNode."""
 
-    def run(self, state: AgentState) -> dict[str, Any]:  # noqa: C901
-        """
-        Prepares for or processes human review feedback for a section.
+    def setUp(self):
+        """Set up a basic AgentState and N8 node for testing."""
+        self.node = N8HumanReviewHITLNode()
+        self.section_id_1 = "section_1_id_n8"
+        self.initial_draft_content = "Ceci est un brouillon initial pour la section 1."
+        # self.critique_content = "Critique V1 pour le brouillon." # Ancienne chaîne
+        # Nouvelle initialisation pour critique_v1 avec un objet CritiqueOutput ou None
+        # Pour les tests de N8, nous n'avons pas besoin d'une critique complexe ici,
+        # car N8 se concentre sur le payload d'interruption et le traitement de la réponse humaine.
+        # Le contenu de la critique est plus pertinent pour N7.
+        # Si un test spécifique a besoin d'une critique, il peut la créer.
+        self.mock_critique_v1_content = CritiqueOutput(
+            overall_assessment_score=3,
+            overall_assessment_summary="Critique N7 simulée pour N8.",
+            identified_flaws=[],
+            missing_information=[],
+            superfluous_content=[],
+            suggested_search_queries=[],
+            final_recommendation="REVISION_NEEDED",  # Ou une autre valeur selon le test
+        )
 
-        Args:
-            state: The current state of the agent.
+        self.refined_draft_content = "Ceci est un brouillon raffiné après critique."
 
-        Returns:
-            A dictionary of fields to update in the AgentState.
-        """
-        logger.info("N8: Human Review HITL Node starting.")
-        updated_fields: dict[str, Any] = {
-            "current_operation_message": "N8: Evaluating human review state.",
-            "interrupt_payload": None,  # Assurer qu'il est vidé s'il n'y a pas d'interruption
-            # last_successful_node sera mis à la fin
+        self.state_dict = {
+            "llm_model_name": settings.llm_model_name,
+            "user_persona": "Test Persona N8",
+            "thesis_outline": [
+                SectionDetail(
+                    id=self.section_id_1,
+                    title="1. Section pour N8",
+                    level=1,
+                    description_objectives="Objectifs N8.",
+                    original_requirements_summary="Req N8.",
+                    draft_v1=self.initial_draft_content,
+                    # critique_v1=self.critique_content, # Ancien
+                    critique_v1=self.mock_critique_v1_content,  # Initialiser avec un mock CritiqueOutput
+                    refined_draft=None,
+                    status=SectionStatus.SELF_CRITIQUE_COMPLETED,
+                    # Assurer que les nouveaux champs de SectionDetail sont présents avec des valeurs par défaut
+                    current_draft_for_critique=self.initial_draft_content,  # Pourrait être le draft_v1
+                    reflection_history=[],
+                    reflection_attempts=0,
+                ),
+                SectionDetail(
+                    id="section_2_id_n8",
+                    title="2. Autre Section N8",
+                    level=1,
+                    description_objectives="Obj N8-2",
+                    original_requirements_summary="Req N8-2",
+                    draft_v1="Brouillon pour section 2",
+                    status=SectionStatus.DRAFT_GENERATED,
+                    critique_v1=None,  # Initialiser à None pour cette section non ciblée
+                    current_draft_for_critique="Brouillon pour section 2",
+                    reflection_history=[],
+                    reflection_attempts=0,
+                ),
+            ],
+            "current_section_id": self.section_id_1,
+            "current_section_index": 0,
+            "current_section_index_for_router": 0,
+            "interrupt_payload": None,
+            "error_message": None,
+            "max_reflection_attempts": 3,  # Ajouté car utilisé par AgentState
         }
+        self.current_state = AgentState(**self.state_dict)
 
-        current_section_id = state.current_section_id
-        current_section_idx_from_state = state.current_section_index
-
-        if current_section_id is None or current_section_idx_from_state is None:
-            msg = "N8: Missing current section_id or current_section_index. Cannot proceed."
-            logger.error(msg)
-            updated_fields["error_message"] = msg
-            updated_fields["last_successful_node"] = "N8HumanReviewHITLNode_Error"
-            return updated_fields
-
-        target_section: SectionDetail | None = None
-        actual_section_index: int | None = None
-
-        thesis_outline_list = (
-            state.thesis_outline if isinstance(state.thesis_outline, list) else []
+    def test_run_first_pass_prepares_interrupt_payload(self):
+        """N8: Si pas de réponse humaine, prépare interrupt_payload et met statut."""
+        section_in_state = self.current_state.get_section_by_id(self.section_id_1)
+        assert section_in_state is not None
+        section_in_state.temporary_human_response = None
+        section_in_state.status = SectionStatus.SELF_CRITIQUE_COMPLETED
+        # S'assurer que current_draft_for_critique est bien le draft_v1 pour ce test
+        section_in_state.current_draft_for_critique = section_in_state.draft_v1
+        section_in_state.refined_draft = (
+            None  # S'assurer qu'il n'y a pas de refined_draft
         )
 
-        for i, s_detail in enumerate(thesis_outline_list):
-            if s_detail.id == current_section_id:
-                target_section = s_detail
-                actual_section_index = i
-                break
+        updated_fields = self.node.run(self.current_state)
 
-        if target_section is None or actual_section_index is None:
-            msg = f"N8: Section with ID '{current_section_id}' not found in thesis_outline."
-            logger.error(msg)
-            updated_fields["error_message"] = msg
-            updated_fields["last_successful_node"] = "N8HumanReviewHITLNode_Error"
-            updated_fields["thesis_outline"] = thesis_outline_list
-            return updated_fields
+        assert updated_fields.get("error_message") is None
+        payload = updated_fields.get("interrupt_payload")
+        assert payload is not None
+        assert payload["section_id"] == self.section_id_1
+        assert (
+            payload["draft_content"] == self.initial_draft_content
+        )  # Doit être draft_v1
+        # Vérifier que critique_v1 dans le payload est bien l'objet CritiqueOutput mocké
+        assert (
+            payload["critique_v1"] == self.mock_critique_v1_content.dict()
+        )  # Comparer les dictionnaires
 
-        section_to_process = target_section.copy(deep=True)
-        human_response_data = section_to_process.temporary_human_response
-
-        if human_response_data:
-            logger.info(
-                f"N8: Processing human response for section '{section_to_process.title}': {human_response_data}"
-            )
-            section_to_process.temporary_human_response = None
-
-            action = human_response_data.get("action")
-            feedback_text = human_response_data.get("feedback_text")
-
-            if action == "approve_section":
-                section_to_process.status = SectionStatus.CONTENT_APPROVED
-                section_to_process.final_content = (
-                    section_to_process.refined_draft
-                    if section_to_process.refined_draft is not None
-                    else section_to_process.draft_v1
-                )
-                section_to_process.human_review_feedback = None
-                updated_fields["current_operation_message"] = (
-                    f"N8: Section '{section_to_process.title}' approved."
-                )
-                updated_fields["current_section_index_for_router"] = (
-                    current_section_idx_from_state + 1
-                )
-
-            elif action == "modify_section":
-                if not (
-                    feedback_text
-                    and isinstance(feedback_text, str)
-                    and feedback_text.strip()
-                ):
-                    section_to_process.status = SectionStatus.HUMAN_REVIEW_PENDING
-                    section_to_process.human_review_feedback = HumanReviewFeedback(
-                        modification_requested=True,
-                        feedback_text="Error: Modification requested but feedback was missing or invalid.",
-                    )
-                    updated_fields["current_operation_message"] = (
-                        f"N8: Modif. for '{section_to_process.title}' had invalid feedback. Awaiting valid review."
-                    )
-                    updated_fields["current_section_index_for_router"] = (
-                        current_section_idx_from_state
-                    )
-                else:
-                    section_to_process.status = SectionStatus.MODIFICATION_REQUESTED
-                    section_to_process.human_review_feedback = HumanReviewFeedback(
-                        modification_requested=True, feedback_text=feedback_text
-                    )
-                    updated_fields["current_operation_message"] = (
-                        f"N8: Section '{section_to_process.title}' sent for modification."
-                    )
-                    updated_fields["current_section_index_for_router"] = (
-                        current_section_idx_from_state
-                    )
-            else:
-                section_to_process.status = SectionStatus.HUMAN_REVIEW_PENDING
-                section_to_process.human_review_feedback = HumanReviewFeedback(
-                    modification_requested=True,
-                    feedback_text=f"Error: Unknown action '{action}' received.",
-                )
-                updated_fields["current_operation_message"] = (
-                    f"N8: Unknown action '{action}'. Awaiting valid review."
-                )
-                updated_fields["current_section_index_for_router"] = (
-                    current_section_idx_from_state
-                )
-
-            updated_fields["last_successful_node"] = "N8HumanReviewHITLNode_Processed"
-
-        else:
-            # Première passe : préparer pour l'interruption (sans la lever explicitement ici)
-            if section_to_process.status != SectionStatus.HUMAN_REVIEW_PENDING:
-                logger.info(
-                    f"N8: Section '{section_to_process.title}' status was {section_to_process.status.value}. "
-                    "Setting to HUMAN_REVIEW_PENDING."
-                )
-                section_to_process.status = SectionStatus.HUMAN_REVIEW_PENDING
-
-            draft_to_review = (
-                section_to_process.refined_draft
-                if section_to_process.refined_draft is not None
-                else section_to_process.draft_v1
-            )
-
-            if draft_to_review is None:
-                msg = f"N8: No draft for section {section_to_process.id} to present for review."
-                logger.warning(msg)
-                section_to_process.status = SectionStatus.ERROR
-                section_to_process.error_details_n6_drafting = (
-                    section_to_process.error_details_n6_drafting or ""
-                ) + "\nN8 Error: No draft content for review."
-                updated_fields["error_message"] = msg
-                updated_fields["current_section_index_for_router"] = (
-                    current_section_idx_from_state + 1
-                )
-                updated_fields["last_successful_node"] = "N8HumanReviewHITLNode_Error"
-            else:
-                # Préparer le payload que l'interface utilisateur externe pourrait lire
-                interrupt_payload_for_ui = {
-                    "node_name": "N8_HumanReviewHITLNode",
-                    "section_id": section_to_process.id,
-                    "title": section_to_process.title,
-                    "draft_content": draft_to_review,
-                    "critique_v1": section_to_process.critique_v1,
-                    "instructions": "Review the draft. Provide response with 'action' ('approve_section'/'modify_section') and 'feedback_text' if modifying.",
-                }
-                logger.info(
-                    f"N8: Prepared for human review of section: '{section_to_process.title}'. Payload set in state.interrupt_payload."
-                )
-                updated_fields["interrupt_payload"] = (
-                    interrupt_payload_for_ui  # Stocker pour l'UI
-                )
-                updated_fields["current_operation_message"] = (
-                    f"N8: Section '{section_to_process.title}' is pending human review."
-                )
-                updated_fields["last_successful_node"] = (
-                    "N8HumanReviewHITLNode_Interrupted"
-                )
-                # Le routeur N4 ne devrait pas avancer l'index si on attend une revue.
-                updated_fields["current_section_index_for_router"] = (
-                    current_section_idx_from_state
-                )
-
-        # Mettre à jour la section dans la liste thesis_outline
-        final_thesis_outline = list(thesis_outline_list)
-        if actual_section_index < len(final_thesis_outline):
-            final_thesis_outline[actual_section_index] = section_to_process
-        else:
-            logger.error(
-                f"N8: actual_section_index {actual_section_index} is out of bounds for thesis_outline (len {len(final_thesis_outline)})."
-            )
-        updated_fields["thesis_outline"] = final_thesis_outline
-
-        logger.info(
-            f"--- FIN NŒUD N8 --- Statut section {current_section_id}: {section_to_process.status.value}"
+        updated_outline = updated_fields.get("thesis_outline", [])
+        processed_section = updated_outline[0]
+        assert processed_section.status == SectionStatus.HUMAN_REVIEW_PENDING
+        assert (
+            updated_fields.get("last_successful_node")
+            == "N8HumanReviewHITLNode_Interrupted"
         )
-        return updated_fields
+        assert updated_fields.get("current_section_index_for_router") == 0
+
+    def test_run_first_pass_uses_refined_draft_if_available(self):
+        """N8: interrupt_payload doit utiliser refined_draft si présent."""
+        section_in_state = self.current_state.get_section_by_id(self.section_id_1)
+        assert section_in_state is not None
+        section_in_state.refined_draft = self.refined_draft_content
+        # current_draft_for_critique devrait être le refined_draft s'il existe
+        section_in_state.current_draft_for_critique = self.refined_draft_content
+        section_in_state.temporary_human_response = None
+        section_in_state.status = (
+            SectionStatus.SELF_CRITIQUE_COMPLETED
+        )  # Ou un statut après révision N6
+
+        updated_fields = self.node.run(self.current_state)
+        payload = updated_fields.get("interrupt_payload")
+        assert payload is not None
+        assert payload["draft_content"] == self.refined_draft_content
+
+    def test_run_processes_approve_action_from_state(self):
+        """N8: Traite une action d'approbation humaine."""
+        section_in_state = self.current_state.get_section_by_id(self.section_id_1)
+        assert section_in_state is not None
+        section_in_state.temporary_human_response = {"action": "approve_section"}
+        section_in_state.refined_draft = self.refined_draft_content
+        section_in_state.current_draft_for_critique = self.refined_draft_content
+
+        updated_fields = self.node.run(self.current_state)
+
+        assert updated_fields.get("interrupt_payload") is None
+        updated_outline = updated_fields.get("thesis_outline", [])
+        processed_section = updated_outline[0]
+
+        assert processed_section.status == SectionStatus.CONTENT_APPROVED
+        assert processed_section.final_content == self.refined_draft_content
+        assert processed_section.human_review_feedback is None
+        assert (
+            updated_fields.get("last_successful_node")
+            == "N8HumanReviewHITLNode_Processed"
+        )
+        assert (
+            updated_fields.get("current_section_index_for_router")
+            == self.current_state.current_section_index + 1
+        )
+
+    def test_run_processes_modify_action_from_state(self):
+        """N8: Traite une demande de modification humaine."""
+        feedback = "Veuillez développer davantage le point X."
+        section_in_state = self.current_state.get_section_by_id(self.section_id_1)
+        assert section_in_state is not None
+        section_in_state.temporary_human_response = {
+            "action": "modify_section",
+            "feedback_text": feedback,
+        }
+        section_in_state.current_draft_for_critique = (
+            section_in_state.draft_v1
+        )  # Ou refined_draft s'il existait
+
+        updated_fields = self.node.run(self.current_state)
+
+        assert updated_fields.get("interrupt_payload") is None
+        updated_outline = updated_fields.get("thesis_outline", [])
+        processed_section = updated_outline[0]
+
+        assert processed_section.status == SectionStatus.MODIFICATION_REQUESTED
+        assert processed_section.human_review_feedback is not None
+        assert processed_section.human_review_feedback.modification_requested is True
+        assert processed_section.human_review_feedback.feedback_text == feedback
+        assert (
+            updated_fields.get("last_successful_node")
+            == "N8HumanReviewHITLNode_Processed"
+        )
+        assert (
+            updated_fields.get("current_section_index_for_router")
+            == self.current_state.current_section_index
+        )
+
+    def test_run_no_draft_content_available(self):
+        """N8: Gère l'absence de brouillon à reviewer."""
+        section_in_state = self.current_state.get_section_by_id(self.section_id_1)
+        assert section_in_state is not None
+        section_in_state.draft_v1 = None
+        section_in_state.refined_draft = None
+        section_in_state.current_draft_for_critique = None  # Important pour le test
+        section_in_state.temporary_human_response = None
+
+        updated_fields = self.node.run(self.current_state)
+
+        assert updated_fields.get("interrupt_payload") is None
+        error_msg = updated_fields.get("error_message", "")
+        assert f"N8: No draft for section {self.section_id_1}" in error_msg
+        updated_outline = updated_fields.get("thesis_outline", [])
+        processed_section = updated_outline[0]
+        assert processed_section.status == SectionStatus.ERROR
+        assert "N8 Error: No draft content for review" in (
+            processed_section.error_details_n6_drafting or ""
+        )  # Doit être n6 ou un champ N8
+        assert (
+            updated_fields.get("last_successful_node") == "N8HumanReviewHITLNode_Error"
+        )
+
+    def test_run_no_current_section_id(self):
+        """N8: Gère l'absence de current_section_id."""
+        self.current_state.current_section_id = None
+        self.current_state.current_section_index = None
+        updated_fields = self.node.run(self.current_state)
+        expected_msg = (
+            "N8: Missing current section_id or current_section_index. "
+            "Cannot proceed."
+        )
+        assert updated_fields.get("error_message") == expected_msg
+        assert (
+            updated_fields.get("last_successful_node") == "N8HumanReviewHITLNode_Error"
+        )
+
+    def test_run_section_not_found(self):
+        """N8: Gère si current_section_id ne correspond à aucune section."""
+        bad_id = "id_non_existant_n8"
+        self.current_state.current_section_id = bad_id
+        updated_fields = self.node.run(self.current_state)
+        expected_msg = f"N8: Section with ID '{bad_id}' not found in thesis_outline."
+        assert updated_fields.get("error_message", "") == expected_msg
+        assert (
+            updated_fields.get("last_successful_node") == "N8HumanReviewHITLNode_Error"
+        )

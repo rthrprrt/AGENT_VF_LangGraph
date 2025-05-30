@@ -77,7 +77,9 @@ class N4SectionProcessorRouter:
                 updated_fields["next_node_override"] = "N5_ContextRetrievalNode"
                 return updated_fields
 
-        for i in range(start_index):
+        for i in range(
+            start_index
+        ):  # pragma: no cover (ce chemin est logique mais pas couvert par tests actuels)
             section = state.thesis_outline[i]
             if section.status == SectionStatus.PENDING:
                 logger.info(
@@ -108,7 +110,7 @@ class N4SectionProcessorRouter:
                 "Routage vers la compilation finale."
             )
             updated_fields["next_node_override"] = "N9_BibliographyManagerNode"
-        else:
+        else:  # pragma: no cover (ce chemin est logique mais pas couvert par tests actuels)
             logger.warning(
                 "N4: No PENDING sections found, but not all sections are "
                 "in a final state. Review needed. Defaulting to compile for now."

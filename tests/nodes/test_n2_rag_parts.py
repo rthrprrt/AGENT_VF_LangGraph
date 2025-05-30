@@ -6,11 +6,9 @@ import pytest
 from langchain_core.documents import Document
 
 from src.config import settings
-
-# Importer la classe du nœud et les fonctions utilitaires si elles sont DANS le module du nœud
 from src.nodes.n2_journal_ingestor_anonymizer import (
     N2JournalIngestorAnonymizerNode,
-    _load_raw_journal_entries_from_files,  # La fonction principale de chargement
+    _load_raw_journal_entries_from_files,
 )
 
 DEFAULT_EMBEDDING_MODEL_FOR_N2_TEST = settings.embedding_model_name
@@ -18,13 +16,13 @@ DEFAULT_EMBEDDING_MODEL_FOR_N2_TEST = settings.embedding_model_name
 
 @pytest.fixture()
 def n2_node_instance():
-    return N2JournalIngestorAnonymizerNode(
-        chunk_size=100, chunk_overlap=10
-    )  # Pour tester le chunking
+    """Instance de N2JournalIngestorAnonymizerNode pour les tests."""
+    return N2JournalIngestorAnonymizerNode(chunk_size=100, chunk_overlap=10)
 
 
 @pytest.fixture()
 def temp_journal_dir(tmp_path: Path) -> Path:
+    """Crée un répertoire temporaire pour les entrées de journal."""
     journal_dir = tmp_path / "journal_entries"
     journal_dir.mkdir()
     return journal_dir
@@ -32,23 +30,20 @@ def temp_journal_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def temp_vector_store_dir(tmp_path: Path) -> Path:
+    """Crée un répertoire temporaire pour le vector store."""
     vs_dir = tmp_path / "faiss_store_n2"
+    # Le répertoire lui-même sera créé par le code testé si nécessaire
     return vs_dir
 
 
 def create_dummy_file(path: Path, content: str):
+    """Crée un fichier factice avec le contenu spécifié."""
     path.write_text(content, encoding="utf-8")
-
-
-# --- Tests pour le chargement des journaux ---
-# Utiliser les fonctions importées depuis le module n2 si elles sont globales,
-# ou les méthodes de l'instance n2_node_instance si elles sont des méthodes.
-# Ici, on va tester _load_raw_journal_entries_from_files qui est la fonction utilisée par N2.run()
 
 
 @patch("src.nodes.n2_journal_ingestor_anonymizer._load_single_journal_file")
 def test_load_raw_journal_entries_success(mock_load_single, temp_journal_dir: Path):
-    # _load_single_journal_file retourne une liste de Document Langchain
+    """Teste le chargement réussi des entrées de journal."""
     doc1_content = "Contenu du journal 1.\nUne autre ligne."
     doc2_content = "Contenu DOCX simulé pour entry2."
     doc3_content = "Entrée sans date dans le nom."
@@ -67,10 +62,8 @@ def test_load_raw_journal_entries_success(mock_load_single, temp_journal_dir: Pa
                 Document(page_content=doc3_content, metadata={"source": str(file_path)})
             ]
         if file_path.name == "empty.txt":
-            return [
-                Document(page_content="")
-            ]  # Simule un fichier vide qui donne un Document vide
-        return []  # Pour les fichiers non supportés ou erreurs
+            return [Document(page_content="")]
+        return []
 
     mock_load_single.side_effect = load_single_side_effect
 
@@ -94,6 +87,7 @@ def test_load_raw_journal_entries_success(mock_load_single, temp_journal_dir: Pa
 
 
 def test_load_raw_journal_entries_non_existent_path():
+    """Teste le comportement avec un chemin de journal inexistant."""
     entries = _load_raw_journal_entries_from_files("chemin/inexistant")
     assert len(entries) == 0
 
@@ -102,6 +96,7 @@ def test_load_raw_journal_entries_non_existent_path():
 def test_load_raw_journal_entries_loader_exception(
     mock_load_single, temp_journal_dir: Path, caplog
 ):
+    """Teste la gestion d'exception lors du chargement d'un fichier."""
     mock_load_single.side_effect = Exception("Erreur de chargement simulée")
     create_dummy_file(temp_journal_dir / "entry1.txt", "contenu")
 
@@ -114,13 +109,14 @@ def test_load_raw_journal_entries_loader_exception(
     assert "Erreur de chargement simulée" in caplog.text
 
 
-# --- Tests pour _chunk_entries_for_embedding ---
 def test_chunk_entries_for_embedding_success(
     n2_node_instance: N2JournalIngestorAnonymizerNode,
 ):
+    """Teste le chunking réussi des entrées."""
     processed_entries = [
         {
-            "anonymized_text": "Texte très long pour le document 1. Une phrase. Une autre phrase.",
+            "anonymized_text": "Texte très long pour le document 1. Une phrase. "
+            "Une autre phrase.",
             "source_file": "doc1.txt",
             "date_str": "2023-01-01",
         },
@@ -143,6 +139,7 @@ def test_chunk_entries_for_embedding_success(
 def test_chunk_entries_for_embedding_no_anonymized_text(
     n2_node_instance: N2JournalIngestorAnonymizerNode, caplog
 ):
+    """Teste le chunking quand anonymized_text est manquant."""
     processed_entries = [
         {"anonymized_text": None, "source_file": "doc1.txt"},
         {"anonymized_text": "  ", "source_file": "doc2.txt"},
@@ -161,6 +158,7 @@ def test_save_or_update_faiss_store_recreate_new(
     n2_node_instance: N2JournalIngestorAnonymizerNode,
     temp_vector_store_dir: Path,
 ):
+    """Teste la création d'un nouveau vector store avec recréation."""
     mock_embeddings_instance = mock_fastembed.return_value
     mock_faiss_db_instance = mock_faiss.from_documents.return_value
 
@@ -189,6 +187,7 @@ def test_save_or_update_faiss_store_recreate_existing(
     n2_node_instance: N2JournalIngestorAnonymizerNode,
     temp_vector_store_dir: Path,
 ):
+    """Teste la recréation d'un vector store existant."""
     mock_path_exists.return_value = True
 
     with patch.object(Path, "iterdir", return_value=iter([])):
@@ -210,13 +209,6 @@ def test_save_or_update_faiss_store_recreate_existing(
             mock_faiss_db_instance.save_local.assert_called_once_with(
                 folder_path=str(temp_vector_store_dir)
             )
-            # mock_unlink devrait avoir été appelé pour index.faiss et index.pkl
-            # si la logique interne de _save_or_update_faiss_store
-            # appelle (vector_store_path / "index.faiss").exists() et que cela retourne True.
-            # Le mock_path_exists actuel est global.
-            # Pour l'instant, nous allons supposer que si mock_path_exists (pour le dossier) est True,
-            # les fichiers internes existent aussi pour la logique de suppression.
-            # Ce test est plus axé sur la recréation que sur la finesse de la suppression.
 
 
 @patch("src.nodes.n2_journal_ingestor_anonymizer.FAISS")
@@ -229,14 +221,7 @@ def test_save_or_update_faiss_store_use_existing(
     n2_node_instance: N2JournalIngestorAnonymizerNode,
     temp_vector_store_dir: Path,
 ):
-    # Correction du side_effect: il doit juste retourner True pour ce test spécifique
-    # où l'on suppose que les fichiers et le répertoire existent.
-    # La complexité de la signature n'est pas le problème ici, mais ce que le mock doit retourner.
-    # Pour que la condition `index_file.exists() and pkl_file.exists() and index_file.stat().st_size > 0`
-    # soit vraie, `mock_path_exists` doit retourner True quand on l'appelle sur index_file et pkl_file.
-
-    # Mock pour Path(...).exists()
-    # Ce mock sera appelé pour vector_store_path.exists(), index_file.exists(), pkl_file.exists()
+    """Teste l'utilisation d'un vector store existant sans recréation."""
     mock_path_exists.return_value = True
 
     mock_index_file_stat = MagicMock()
@@ -250,9 +235,7 @@ def test_save_or_update_faiss_store_use_existing(
         success = n2_node_instance._save_or_update_faiss_store(
             docs, str(temp_vector_store_dir), DEFAULT_EMBEDDING_MODEL_FOR_N2_TEST, False
         )
-        assert (
-            success is True
-        )  # L'erreur initiale provenait du TypeError qui faisait retourner False
+        assert success is True
         mock_faiss.load_local.assert_called_once_with(
             folder_path=str(temp_vector_store_dir),
             embeddings=mock_embeddings_instance,
@@ -267,13 +250,15 @@ def test_save_or_update_faiss_store_use_existing(
 @patch("src.nodes.n2_journal_ingestor_anonymizer.FAISS")
 @patch("src.nodes.n2_journal_ingestor_anonymizer.FastEmbedEmbeddings")
 def test_save_or_update_faiss_store_create_new_no_docs_recreate_false(
-    mock_fastembed: MagicMock,
+    mock_fastembed: MagicMock,  # F841: mock_fastembed est assigné mais non utilisé
     mock_faiss: MagicMock,
     n2_node_instance: N2JournalIngestorAnonymizerNode,
     temp_vector_store_dir: Path,
     caplog,
 ):
-    mock_embeddings_instance = mock_fastembed.return_value
+    """Teste création si pas de docs et recreate=False."""
+    # mock_embeddings_instance n'est pas nécessaire ici car FAISS ne sera pas appelé
+    # mock_fastembed.return_value # Cette ligne peut être supprimée (F841)
     success = n2_node_instance._save_or_update_faiss_store(
         [],
         str(temp_vector_store_dir),
@@ -295,6 +280,7 @@ def test_save_or_update_faiss_store_embedding_init_error(
     n2_node_instance: N2JournalIngestorAnonymizerNode,
     temp_vector_store_dir: Path,
 ):
+    """Teste la gestion d'erreur lors de l'init du modèle d'embedding."""
     success = n2_node_instance._save_or_update_faiss_store(
         [Document(page_content="test")], str(temp_vector_store_dir), "bad_model", True
     )

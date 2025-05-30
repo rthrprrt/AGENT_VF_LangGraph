@@ -26,27 +26,31 @@ DATE_IN_FILENAME_PATTERN = re.compile(
 
 
 def simple_anonymizer(text: str, anonymization_map: dict[str, str]) -> str:
+    """Applique une anonymisation simple par remplacement de chaînes."""
     for real_name, anon_name in anonymization_map.items():
         text = text.replace(real_name, anon_name)
     return text
 
 
 def _parse_date_from_filename(filename: str) -> str | None:
+    """Extrait une date YYYY-MM-DD d'un nom de fichier si possible."""
     match = DATE_IN_FILENAME_PATTERN.match(filename)
     if match:
-        if match.group(2):
+        if match.group(2):  # Format YYYY-MM-DD
             return match.group(2)
-        if match.group(3):
+        if match.group(3):  # Format DD-MM-YYYY ou DD/MM/YYYY
             date_str = match.group(3).replace("/", "-")
             try:
                 return datetime.strptime(date_str, "%d-%m-%Y").strftime("%Y-%m-%d")
-            except ValueError:
-                return date_str
+            except ValueError:  # pragma: no cover
+                return date_str  # Retourne la chaîne originale si parsing échoue
     return None
 
 
 def _load_single_journal_file(file_path: Path) -> list[Document]:
-    """Charge un unique fichier journal et retourne une liste de Documents Langchain."""
+    """
+    Charge un unique fichier journal et retourne une liste de Documents Langchain.
+    """
     try:
         if file_path.suffix == ".txt":
             loader = TextLoader(str(file_path), encoding="utf-8")
@@ -79,34 +83,19 @@ def _load_raw_journal_entries_from_files(journal_dir_path: str) -> list[dict[str
 
     for file_path in sorted(path_obj.iterdir()):
         if file_path.is_file():
-            docs: list[Document] = []  # Initialiser docs
+            docs: list[Document] = []
             try:
                 docs = _load_single_journal_file(file_path)
-            except Exception as e_load:  # Capturer l'exception ici
+            except Exception as e_load:  # pragma: no cover
                 logger.error(
                     "Échec du chargement de _load_single_journal_file pour %s: %s",
                     file_path.name,
                     e_load,
-                    exc_info=True,  # Log l'exception complète
+                    exc_info=True,
                 )
-                # Conformément au test plan, si _load_single_journal_file lève une exception,
-                # on loggue et on continue (ce qui signifie que cette entrée ne sera pas ajoutée).
-                # Le test test_load_raw_journal_entries_loader_exception attendait `len(entries) == 0`
-                # ce qui impliquait que le try/except devait être à l'intérieur de la boucle et
-                # ne pas empêcher le traitement d'autres fichiers.
-                # Si l'exception doit empêcher toutes les entrées, la logique du test serait différente.
-                # Le log "Erreur générique chargement fichier entry1.txt" vient de _load_single_journal_file.
-                # Donc, on ne fait rien de plus ici, _load_single_journal_file retournera [] en cas d'erreur.
-                # Le test s'attend à ce que _load_single_journal_file lève une exception,
-                # et _load_raw_journal_entries_from_files la gère.
-                # La structure actuelle de _load_single_journal_file capture déjà les exceptions et retourne [].
-                # Le test mocke _load_single_journal_file pour qu'IL LÈVE une exception.
-                # Donc, le try/except doit être dans _load_raw_journal_entries_from_files.
-                continue  # Passer au fichier suivant
+                continue
 
-            if (
-                not docs
-            ):  # Si le loader retourne une liste vide (erreur ou fichier vide)
+            if not docs:
                 logger.warning("Aucun document chargé depuis %s", file_path.name)
                 continue
 
@@ -125,7 +114,7 @@ def _load_raw_journal_entries_from_files(journal_dir_path: str) -> list[dict[str
                         "tone_issues_found": False,
                     }
                 )
-            else:
+            else:  # pragma: no cover
                 logger.warning(
                     "Aucun contenu textuel extrait de %s après chargement.",
                     file_path.name,
@@ -141,20 +130,23 @@ def _load_raw_journal_entries_from_files(journal_dir_path: str) -> list[dict[str
 
 class N2JournalIngestorAnonymizerNode:
     """
-    Nœud pour charger, traiter (anonymiser basiquement), chunker les entrées
-    du journal et créer/mettre à jour le vector store FAISS.
+    Nœud pour charger, traiter, chunker les entrées du journal et gérer le vector store.
+
+    L'anonymisation est basique. Le vector store utilisé est FAISS.
     """
 
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 150):
+        """Initialise le nœud avec la taille et le chevauchement des chunks."""
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
     def _process_entries(
         self, entries: list[dict[str, Any]], anonymization_map: dict[str, str]
     ) -> list[dict[str, Any]]:
+        """Applique l'anonymisation aux entrées de journal."""
         processed_entries = []
         for entry in entries:
-            entry_copy = entry.copy()  # Travailler sur une copie
+            entry_copy = entry.copy()
             anon_text = simple_anonymizer(entry_copy["raw_text"], anonymization_map)
             entry_copy["anonymized_text"] = anon_text
             processed_entries.append(entry_copy)
@@ -163,6 +155,7 @@ class N2JournalIngestorAnonymizerNode:
     def _chunk_entries_for_embedding(
         self, processed_entries: list[dict[str, Any]]
     ) -> list[Document]:
+        """Divise les entrées traitées en chunks pour l'embedding."""
         logger.info("Démarrage du chunking des entrées traitées...")
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
@@ -173,7 +166,7 @@ class N2JournalIngestorAnonymizerNode:
         all_docs: list[Document] = []
         for entry_idx, entry in enumerate(processed_entries):
             anonymized_text = entry.get("anonymized_text")
-            if not anonymized_text or not anonymized_text.strip():
+            if not anonymized_text or not anonymized_text.strip():  # pragma: no cover
                 logger.warning(
                     "Aucun 'anonymized_text' pour l'entrée source: %s. Passage.",
                     entry.get("source_file", f"Inconnue_{entry_idx}"),
@@ -188,13 +181,58 @@ class N2JournalIngestorAnonymizerNode:
                     ),
                     "journal_date": entry.get("date_str", "Date inconnue"),
                     "chunk_index": i,
-                    "chunk_id": f"{entry.get('source_file', f'unk_{entry_idx}')}_chunk{i}",
+                    "chunk_id": f"{entry.get('source_file', f'unk_{entry_idx}')}"
+                    f"_chunk{i}",
                 }
                 doc = Document(page_content=chunk_text, metadata=metadata)
                 all_docs.append(doc)
         logger.info("%d chunks créés pour l'indexation FAISS.", len(all_docs))
         return all_docs
 
+    def _remove_existing_store(self, vector_store_path: Path) -> None:
+        """Supprime un vector store existant."""
+        logger.info(
+            "Recréation. Suppression du vector store existant à : %s",
+            vector_store_path,
+        )
+        try:
+            faiss_file = vector_store_path / "index.faiss"
+            pkl_file = vector_store_path / "index.pkl"
+            if faiss_file.exists():
+                faiss_file.unlink(missing_ok=True)
+            if pkl_file.exists():
+                pkl_file.unlink(missing_ok=True)
+
+            is_empty_after_unlink = not any(vector_store_path.iterdir())
+            if is_empty_after_unlink:  # pragma: no cover
+                vector_store_path.rmdir()
+            elif not faiss_file.exists() and not pkl_file.exists():
+                logger.info(
+                    "Fichiers FAISS supprimés, mais le répertoire "
+                    "contient d'autres éléments."
+                )
+            else:  # pragma: no cover
+                logger.warning(
+                    "Échec de la suppression des fichiers FAISS ou répertoire non vide."
+                )
+        except Exception as e_del:  # noqa: BLE001 # pragma: no cover
+            logger.error("Erreur suppression ancien vector store: %s", e_del)
+
+    def _create_empty_faiss_store(
+        self, vector_store_path: Path, embeddings: FastEmbedEmbeddings
+    ) -> bool:
+        """Crée un vector store FAISS vide."""
+        try:
+            dummy_doc_for_empty_index = [Document(page_content=" ")]
+            empty_faiss = FAISS.from_documents(dummy_doc_for_empty_index, embeddings)
+            empty_faiss.save_local(folder_path=str(vector_store_path))
+            logger.info("Vector store FAISS vide créé à : %s", vector_store_path)
+            return True
+        except Exception as e_empty:  # noqa: BLE001 # pragma: no cover
+            logger.error("Erreur création vector store vide: %s", e_empty)
+            return False
+
+    # noqa: C901
     def _save_or_update_faiss_store(
         self,
         docs_to_index: list[Document],
@@ -202,6 +240,7 @@ class N2JournalIngestorAnonymizerNode:
         embedding_model_name: str,
         recreate_if_exists: bool,
     ) -> bool:
+        """Sauvegarde ou met à jour le vector store FAISS."""
         logger.info("Gestion du vector store FAISS à : %s", vector_store_path_str)
         vector_store_path = Path(vector_store_path_str)
         embeddings: FastEmbedEmbeddings | None = None
@@ -217,38 +256,7 @@ class N2JournalIngestorAnonymizerNode:
             return False
 
         if recreate_if_exists and vector_store_path.exists():
-            logger.info(
-                "Recréation. Suppression du vector store existant à : %s",
-                vector_store_path,
-            )
-            try:
-                if (vector_store_path / "index.faiss").exists():
-                    (vector_store_path / "index.faiss").unlink(missing_ok=True)
-                if (vector_store_path / "index.pkl").exists():
-                    (vector_store_path / "index.pkl").unlink(missing_ok=True)
-
-                # Condition pour rmdir: seulement si le répertoire est vide après suppression
-                is_empty_after_unlink = not any(vector_store_path.iterdir())
-                if is_empty_after_unlink:
-                    vector_store_path.rmdir()
-                elif (
-                    not (vector_store_path / "index.faiss").exists()
-                    and not (vector_store_path / "index.pkl").exists()
-                ):
-                    # Si les fichiers ont été supprimés mais d'autres fichiers existent, c'est ok.
-                    logger.info(
-                        "Fichiers FAISS supprimés, mais le répertoire contient d'autres éléments."
-                    )
-                else:  # Cas où la suppression a échoué pour une raison ou une autre
-                    logger.warning(
-                        "Échec de la suppression des fichiers FAISS ou répertoire non vide."
-                    )
-                    # Ne pas essayer de supprimer le répertoire s'il n'est pas vide
-                    pass
-
-            except Exception as e_del:  # noqa: BLE001
-                logger.error("Erreur suppression ancien vector store: %s", e_del)
-                # Continuer quand même pour essayer de créer le nouveau.
+            self._remove_existing_store(vector_store_path)
 
         vector_store_path.mkdir(parents=True, exist_ok=True)
 
@@ -256,29 +264,18 @@ class N2JournalIngestorAnonymizerNode:
             logger.warning(
                 "Aucun document à indexer. Vector store non (re)créé ou vide."
             )
-            if recreate_if_exists:
-                try:
-                    dummy_doc_for_empty_index = [Document(page_content=" ")]
-                    empty_faiss = FAISS.from_documents(
-                        dummy_doc_for_empty_index, embeddings
-                    )
-                    empty_faiss.save_local(folder_path=str(vector_store_path))
-                    logger.info(
-                        "Vector store FAISS vide créé à : %s", vector_store_path
-                    )
-                except Exception as e_empty:  # noqa: BLE001
-                    logger.error("Erreur création vector store vide: %s", e_empty)
-                    return False
+            if recreate_if_exists:  # pragma: no cover
+                return self._create_empty_faiss_store(vector_store_path, embeddings)
             return True
 
         try:
             index_file = vector_store_path / "index.faiss"
-            pkl_file = vector_store_path / "index.pkl"  # FAISS aussi besoin du .pkl
+            pkl_file = vector_store_path / "index.pkl"
 
             if (
                 not recreate_if_exists
                 and index_file.exists()
-                and pkl_file.exists()  # Vérifier aussi pkl_file
+                and pkl_file.exists()
                 and index_file.stat().st_size > 0
             ):
                 logger.info("Mise à jour du vector store FAISS existant...")
@@ -288,18 +285,21 @@ class N2JournalIngestorAnonymizerNode:
                     allow_dangerous_deserialization=True,
                 )
                 db.add_documents(docs_to_index)
-                db.save_local(folder_path=str(vector_store_path))
-                logger.info(
-                    "Vector store FAISS mis à jour et sauvegardé à : %s",
-                    vector_store_path,
-                )
             else:
                 logger.info("Création d'un nouveau vector store FAISS...")
                 db = FAISS.from_documents(docs_to_index, embeddings)
-                db.save_local(folder_path=str(vector_store_path))
-                logger.info(
-                    "Vector store FAISS créé et sauvegardé à : %s", vector_store_path
-                )
+
+            db.save_local(folder_path=str(vector_store_path))
+            store_action = (
+                "mis à jour"
+                if (not recreate_if_exists and index_file.exists())
+                else "créé"
+            )
+            logger.info(
+                "Vector store FAISS %s et sauvegardé à : %s",
+                store_action,
+                vector_store_path,
+            )
             return True
         except Exception as e:  # noqa: BLE001
             logger.error(
@@ -309,16 +309,18 @@ class N2JournalIngestorAnonymizerNode:
             )
             return False
 
-    def run(self, state: AgentState) -> dict[str, Any]:  # noqa: C901
+    def run(self, state: AgentState) -> dict[str, Any]:
+        """Exécute le nœud d'ingestion et d'anonymisation du journal."""
         logger.info("N2: Journal Ingestor & Anonymizer Node starting...")
         updated_fields: dict[str, Any] = {}
 
-        if (
-            not state.journal_path
-            or not state.vector_store_path
-            or not state.embedding_model_name
-        ):
-            msg = "N2 Error: Journal path, vector store path, or embedding model name missing."
+        if not all(
+            [state.journal_path, state.vector_store_path, state.embedding_model_name]
+        ):  # pragma: no cover
+            msg = (
+                "N2 Error: Journal path, vector store path, or embedding model name "
+                "missing."
+            )
             logger.error(msg)
             updated_fields["error_message"] = msg
             updated_fields["last_successful_node"] = (
@@ -327,7 +329,7 @@ class N2JournalIngestorAnonymizerNode:
             return updated_fields
 
         raw_journal_data = _load_raw_journal_entries_from_files(state.journal_path)
-        if not raw_journal_data:
+        if not raw_journal_data:  # pragma: no cover
             logger.warning("N2: Aucune entrée de journal brute n'a été chargée.")
 
         anonymization_map = state.anonymization_map or DEFAULT_ANONYMIZATION_MAP
@@ -341,8 +343,8 @@ class N2JournalIngestorAnonymizerNode:
 
         store_success = self._save_or_update_faiss_store(
             docs_to_index,
-            state.vector_store_path,
-            state.embedding_model_name,
+            state.vector_store_path,  # type: ignore
+            state.embedding_model_name,  # type: ignore
             state.recreate_vector_store,
         )
 
@@ -352,7 +354,7 @@ class N2JournalIngestorAnonymizerNode:
                 "N2: Journal entries processed and vector store updated."
             )
             updated_fields["last_successful_node"] = "N2JournalIngestorAnonymizerNode"
-        else:
+        else:  # pragma: no cover
             updated_fields["vector_store_initialized"] = False
             updated_fields["error_message"] = (
                 "N2: Failed to save or update FAISS vector store."

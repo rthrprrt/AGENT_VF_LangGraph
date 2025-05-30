@@ -7,6 +7,7 @@ from src.state import AgentState, HumanReviewFeedback, SectionDetail, SectionSta
 
 @pytest.fixture()
 def router_node():
+    """Fixture pour N4SectionProcessorRouter."""
     return N4SectionProcessorRouter()
 
 
@@ -14,6 +15,7 @@ class TestSectionProcessorRouter:
     def test_route_to_process_next_section_when_pending_exists(
         self, router_node, caplog
     ):
+        """Teste le routage vers N5 si une section PENDING existe."""
         outline = [
             SectionDetail(
                 id="1",
@@ -51,6 +53,7 @@ class TestSectionProcessorRouter:
     def test_route_to_process_next_section_for_modification_requested(
         self, router_node, caplog
     ):
+        """Teste le routage vers N5 si une section demande une modification."""
         outline = [
             SectionDetail(
                 id="1",
@@ -91,6 +94,7 @@ class TestSectionProcessorRouter:
     def test_route_continues_from_last_index_if_no_modification_requested(
         self, router_node, caplog
     ):
+        """Teste la progression si aucune modification n'est demandée."""
         outline = [
             SectionDetail(
                 id="1",
@@ -127,6 +131,7 @@ class TestSectionProcessorRouter:
         assert "N4: Section 'S3' (ID: 3) is pending." in caplog.text
 
     def test_route_to_compile_when_all_done_or_error(self, router_node, caplog):
+        """Teste le routage vers la compilation si toutes les sections sont traitées."""
         outline = [
             SectionDetail(
                 id="1",
@@ -157,9 +162,11 @@ class TestSectionProcessorRouter:
         result = router_node.run(state)
 
         assert result["next_node_override"] == "N9_BibliographyManagerNode"
-        assert "N4: Toutes les sections semblent traitées ou en erreur." in caplog.text
+        log_text = "N4: Toutes les sections semblent traitées ou en erreur."
+        assert log_text in caplog.text
 
     def test_route_to_error_when_outline_empty(self, router_node, caplog):
+        """Teste le routage vers une erreur si le plan est vide."""
         state = AgentState(thesis_outline=[])
         result = router_node.run(state)
         assert result["next_node_override"] == "ERROR_HANDLER"
@@ -167,6 +174,7 @@ class TestSectionProcessorRouter:
         assert result["error_message"] == "N4: Thesis outline is empty."
 
     def test_finds_earlier_pending_section(self, router_node, caplog):
+        """Teste la recherche d'une section PENDING antérieure."""
         outline = [
             SectionDetail(
                 id="1",
@@ -200,11 +208,13 @@ class TestSectionProcessorRouter:
         assert result["current_section_id"] == "1"
         assert result["current_section_index"] == 0
         assert result.get("current_section_index_for_router") == 0
-        assert "N4: Found earlier PENDING section 'S1' (ID: 1)." in caplog.text
+        log_text = "N4: Found earlier PENDING section 'S1' (ID: 1)."
+        assert log_text in caplog.text
 
     def test_all_sections_not_final_but_no_pending_leads_to_warning_and_compile(
         self, router_node, caplog
     ):
+        """Teste un cas limite : pas de PENDING mais pas toutes finales."""
         outline = [
             SectionDetail(
                 id="1",
@@ -227,10 +237,10 @@ class TestSectionProcessorRouter:
         result = router_node.run(state)
 
         assert result["next_node_override"] == "N9_BibliographyManagerNode"
-        assert "N4: Inconsistent section states. Check thesis_outline." in result.get(
-            "error_message", ""
+        error_msg = "N4: Inconsistent section states. Check thesis_outline."
+        assert error_msg in result.get("error_message", "")
+        log_text = (
+            "N4: No PENDING sections found, but not all sections are in a "
+            "final state."
         )
-        assert (
-            "N4: No PENDING sections found, but not all sections are in a final state."
-            in caplog.text
-        )
+        assert log_text in caplog.text

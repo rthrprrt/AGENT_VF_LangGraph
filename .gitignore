@@ -2,26 +2,58 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
+*.egg
 
 # Poetry
 .venv/
+poetry.lock # Souvent inclus, mais peut être ignoré si tous les devs utilisent `poetry install` depuis pyproject.toml
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # IDEs and editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+*.sublime-project
+*.sublime-workspace
 
-# Data files (if large or sensitive and not meant for versioning)
-# Consider what in 'data/input' and 'data/processed' should be ignored.
-# For example, the actual PDF and journal entries might be large.
-# data/input/school_guidelines/*.pdf
-# data/input/journal_entries/*
-# data/processed/vector_store/*
-# data/processed/langgraph_checkpoints.sqlite # Checkpoints can get large
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Data files (PRIVATE - DO NOT COMMIT)
+data/input/journal_entries/*
+data/input/school_guidelines/*.pdf
+# Si vous ne voulez pas versionner l'exemple Digi5.txt non plus :
+# data/input/school_guidelines/*.txt 
+data/processed/vector_store/*
+data/processed/langgraph_checkpoints.sqlite
+data/processed/langgraph_checkpoints.sqlite-shm
+data/processed/langgraph_checkpoints.sqlite-wal
+
 
 # Output files
 outputs/
+pipeline_N3_N5_N6_run_*.log # Plus spécifique si outputs/ a d'autres choses
+
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
+
+# Pytest cache
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# MyPy cache
+.mypy_cache/

@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     Configuration settings for the AGENT_VF application.
 
     Values can be overridden by environment variables.
+    The `model_config` attribute is used for Pydantic settings configuration.
     """
 
     ollama_base_url: str = "http://localhost:11434"
     llm_model_name: str = "gemma3:12b-it-q4_K_M"
-    embedding_model_name: str = "fastembed/BAAI/bge-small-en-v1.5"
+    # CORRECTION: Utiliser le nom de modèle exact supporté par fastembed
+    embedding_model_name: str = "BAAI/bge-small-en-v1.5"
 
     default_school_guidelines_path: str = str(
         PROJECT_ROOT
@@ -33,7 +35,7 @@ class Settings(BaseSettings):
 
     vector_store_directory: str = str(PROJECT_ROOT / "data/processed/vector_store")
     journal_vector_store_path: str = str(PROJECT_ROOT / "data/processed/vector_store")
-    recreate_vector_store: bool = False  # Utilisé par N0 et N2
+    recreate_vector_store: bool = False
 
     k_retrieval_count: int = 3
 
@@ -49,8 +51,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-# Le log est maintenant après l'instanciation pour inclure k_retrieval_count
-# et persistence_db_path
+
 logger.info(
     "Settings loaded: LLM=%s, Embeddings=%s, RecreateVS=%s, K_Retrieval=%d, "
     "PersistenceDB=%s",
@@ -61,8 +62,7 @@ logger.info(
     settings.persistence_db_path,
 )
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Current AGENT_VF Settings (from config.py):")
-    # Utiliser model_dump() pour Pydantic V2 / pydantic-settings
     for field_name, value in settings.model_dump().items():
         print(f"  {field_name}: {value}")

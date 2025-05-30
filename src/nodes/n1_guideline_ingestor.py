@@ -23,7 +23,8 @@ MIN_PAGES_PATTERN = re.compile(r"minimum\sde\s*(\d+)\s*pages", re.IGNORECASE)
 TEXT_JUSTIFICATION_PATTERN = re.compile(r"texte\s+justifié", re.IGNORECASE)
 
 # Ce pattern simple a fonctionné pour les tests de base.
-# Il capture un chiffre suivi d'un point, puis des espaces, puis le reste de la ligne comme titre.
+# Il capture un chiffre suivi d'un point, puis des espaces, puis le reste de
+# la ligne comme titre.
 SECTION_TITLE_PATTERN_FOR_TEST = re.compile(
     r"^\s*\d+\.\s*(.+)$", re.MULTILINE | re.IGNORECASE
 )
@@ -31,12 +32,14 @@ SECTION_TITLE_PATTERN_FOR_TEST = re.compile(
 
 class N1GuidelineIngestorNode:
     """
-    Nœud responsable de l'ingestion et du parsing des directives scolaires
-    (format PDF) pour en extraire la structure, les contraintes de formatage,
+    Nœud responsable de l'ingestion et du parsing des directives scolaires.
+
+    Format PDF attendu pour en extraire la structure, les contraintes de formatage,
     et les objectifs clés.
     """
 
     def _extract_text_from_pdf(self, pdf_path: str) -> str | None:
+        """Extrait le texte brut d'un fichier PDF."""
         try:
             reader = pypdf.PdfReader(pdf_path)
             text = ""
@@ -54,6 +57,7 @@ class N1GuidelineIngestorNode:
             return None
 
     def _parse_formatting_rules(self, text: str) -> dict[str, Any]:
+        """Parse les règles de formatage à partir du texte extrait."""
         rules: dict[str, Any] = {}
         font_match = FONT_PATTERN.search(text)
         if font_match:
@@ -63,19 +67,19 @@ class N1GuidelineIngestorNode:
         spacing_match = LINE_SPACING_PATTERN.search(text)
         if spacing_match:
             spacing_type_raw = spacing_match.group(1).lower().strip()
-            # Le groupe 2 est optionnel et ne sera présent que pour "personnalisé XX pts"
+            # Le groupe 2 est optionnel et ne sera présent que pour
+            # "personnalisé XX pts"
             if "personnalisé" in spacing_type_raw and spacing_match.group(2):
                 rules["line_spacing_type"] = "personnalisé"
                 try:
                     rules["line_spacing_pts"] = float(
                         spacing_match.group(2).replace(",", ".")
                     )
-                except (
-                    ValueError,
-                    AttributeError,
-                ):  # Attraper si group(2) est None ou non convertible
+                except (ValueError, AttributeError):
+                    # Attraper si group(2) est None ou non convertible
                     logger.warning(
-                        f"Could not parse line spacing points from: {spacing_match.group(0)}"
+                        "Could not parse line spacing points from: %s",
+                        spacing_match.group(0),
                     )
             elif spacing_type_raw in ["1.5", "simple", "double"]:
                 rules["line_spacing_type"] = spacing_type_raw
@@ -92,38 +96,25 @@ class N1GuidelineIngestorNode:
         return rules
 
     def _parse_structured_content(self, text: str) -> dict[str, list[str]]:
+        """Parse la structure des sections à partir du texte."""
         structured_content: dict[str, list[str]] = {}
         # Utiliser le pattern qui fonctionnait pour les tests initiaux
         for match in SECTION_TITLE_PATTERN_FOR_TEST.finditer(text):
             title = match.group(1).strip().replace("\n", " ")
-            # Correction de la condition:
-            # Accepter les titres d'au moins 4 caractères, même sans espace (ex: "INTRODUCTION")
-            # et qui ne commencent pas par "page" (pour éviter de capturer "Page X sur Y")
-            # Le pattern capture déjà ce qui suit "X. ", donc "1. Contexte" (sous-section) n'est pas ce que l'on vise ici.
-            # Pour l'instant, ce pattern simple ne distingue pas les niveaux de sous-section.
-            # Une amélioration future pourrait utiliser des patterns plus spécifiques par niveau.
-            # "1. Introduction." -> title = "Introduction." -> "Introduction"
-            # "1. INTRODUCTION" -> title = "INTRODUCTION"
-            # "2. Description de la mission." -> title = "Description de la mission." -> "Description de la mission"
-            # "VI. CONCLUSION" ne sera pas capturé par ce pattern.
-
-            # Pour capturer "1. Introduction" ou "2. Titre avec espaces" mais pas "1.1. Sous-titre"
-            # le pattern pourrait être r"^\s*(\d+)\.\s+([A-ZÀ-Ÿ][A-ZÀ-Ÿ\s\-']{3,})$"
-            # Mais le test plan dit "Ce pattern simple a fonctionné pour les tests de base."
-            # Je vais donc juste modifier la condition de filtrage du titre.
-
-            cleaned_title = title.rstrip(
-                "."
-            )  # Enlever le point final si présent pour la clé
+            # Accepter les titres d'au moins 4 caractères, même sans espace
+            # (ex: "INTRODUCTION") et qui ne commencent pas par "page"
+            # (pour éviter de capturer "Page X sur Y")
+            cleaned_title = title.rstrip(".")  # Enlever le point final si présent
 
             if len(cleaned_title) >= 4 and not cleaned_title.lower().startswith("page"):
-                # S'assurer que le titre ne contient pas lui-même une structure de sous-section
-                # comme "1. Contexte" (ce qui indique que le pattern a capturé trop loin)
-                if not re.match(r"^\d+\.\d+", cleaned_title):  # Eviter X.Y ...
+                # S'assurer que le titre ne contient pas lui-même une structure
+                # de sous-section comme "1. Contexte"
+                if not re.match(r"^\d+\.\d+", cleaned_title):
                     structured_content[cleaned_title] = []
         return structured_content
 
     def run(self, state: AgentState) -> dict[str, Any]:
+        """Exécute l'ingestion et le parsing des directives scolaires."""
         logger.info(
             "N1: Ingesting school guidelines from: %s...", state.school_guidelines_path
         )
@@ -139,8 +130,11 @@ class N1GuidelineIngestorNode:
         raw_text = self._extract_text_from_pdf(state.school_guidelines_path)
 
         if raw_text is None:
-            msg = f"N1: Failed to extract text from PDF: {state.school_guidelines_path}"
-            logger.error(msg)  # Déjà loggé par _extract_text_from_pdf
+            msg = (
+                f"N1: Failed to extract text from PDF: "
+                f"{state.school_guidelines_path}"
+            )
+            logger.error(msg)
             updated_fields["error_message"] = msg
             updated_fields["last_successful_node"] = "N1GuidelineIngestorNode_Error"
             return updated_fields
@@ -163,8 +157,9 @@ class N1GuidelineIngestorNode:
 
         if not structured_content and not formatting_rules and len(raw_text) > 0:
             logger.warning(
-                "N1: No structured content or formatting rules were parsed from non-empty PDF. "
-                "Patterns may need adjustment or PDF content is not as expected."
+                "N1: No structured content or formatting rules were parsed from "
+                "non-empty PDF. Patterns may need adjustment or PDF content is "
+                "not as expected."
             )
         elif not structured_content and len(raw_text) > 0:
             logger.warning(

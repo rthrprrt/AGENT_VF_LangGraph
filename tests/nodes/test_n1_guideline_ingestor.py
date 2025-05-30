@@ -5,27 +5,21 @@ from unittest.mock import MagicMock, patch
 from src.nodes.n1_guideline_ingestor import N1GuidelineIngestorNode
 from src.state import AgentState
 
-# Désactiver le logging global pour les tests sauf si spécifiquement activé
-# logging.disable(logging.CRITICAL)
-
 
 class TestN1GuidelineIngestorNode(unittest.TestCase):
     def setUp(self):
         self.node = N1GuidelineIngestorNode()
         self.initial_state = AgentState(school_guidelines_path="dummy/path.pdf")
-        # Réactiver le logging pour ce logger spécifique si besoin de débugger N1
-        # logging.getLogger("src.nodes.n1_guideline_ingestor").setLevel(logging.DEBUG)
 
     @patch("src.nodes.n1_guideline_ingestor.pypdf.PdfReader")
     def test_ingest_school_guidelines_success(self, mock_pdf_reader):
         """Test successful ingestion and parsing of guidelines."""
         mock_page = MagicMock()
-        # MODIFICATION: Ajout de \n pour simuler des titres sur leurs propres lignes
         mock_page.extract_text.return_value = (
             "Titre RNCP. Objectifs. Police Times New Roman 12 pts. "
             "Interligne 1.5. Style de citation APA. Minimum de 30 pages. "
-            "Texte justifié.\n1. Introduction.\n2. Description de la mission.\n"  # Ajout de \n
-            "- Sous point 2.1.\n6. Conclusion."  # Ajout de \n
+            "Texte justifié.\n1. Introduction.\n2. Description de la mission.\n"
+            "- Sous point 2.1.\n6. Conclusion."
         )
         mock_reader_instance = mock_pdf_reader.return_value
         mock_reader_instance.pages = [mock_page]
@@ -46,7 +40,7 @@ class TestN1GuidelineIngestorNode(unittest.TestCase):
         structure = result.get("school_guidelines_structured", {})
         assert "Introduction" in structure
         assert "Description de la mission" in structure
-        # assert "Conclusion" in structure # "6. Conclusion" devrait aussi être capturé.
+        assert "Conclusion" in structure
         assert result.get("last_successful_node") == "N1GuidelineIngestorNode"
         assert result.get("error_message") is None
 
@@ -65,7 +59,7 @@ class TestN1GuidelineIngestorNode(unittest.TestCase):
     def test_ingest_school_guidelines_no_text_extracted(self, mock_pdf_reader):
         """Test handling when PDF has no extractable text."""
         mock_page = MagicMock()
-        mock_page.extract_text.return_value = ""  # PDF vide ou non extractible
+        mock_page.extract_text.return_value = ""
         mock_reader_instance = mock_pdf_reader.return_value
         mock_reader_instance.pages = [mock_page]
 
@@ -73,12 +67,10 @@ class TestN1GuidelineIngestorNode(unittest.TestCase):
         result = self.node.run(state_with_empty_pdf)
 
         assert result.get("school_guidelines_raw_text") == ""
-        # Les parsers peuvent retourner des dicts vides s'ils ne trouvent rien
         assert result.get("school_guidelines_formatting") == {
             "text_justification": False
-        }  # car text_justification a un fallback
+        }
         assert result.get("school_guidelines_structured") == {}
-        # Un warning devrait être loggé, mais on ne le teste pas ici directement.
 
     def test_parse_formatting_rules(self):
         """Directly test the _parse_formatting_rules method."""
@@ -109,5 +101,5 @@ class TestN1GuidelineIngestorNode(unittest.TestCase):
         assert "DÉVELOPPEMENT" in structure
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     unittest.main()

@@ -1,171 +1,192 @@
-# src/tools/t1_journal_context_retriever.py
+# src/nodes/n5_context_retrieval.py
 import logging
-import os
-from typing import Any  # Ajout de List, Optional
+from typing import Any
 
-from langchain_community.embeddings import FastEmbedEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_core.documents import Document  # Ajout de Document
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain_core.tools import BaseTool
+from src.config import settings
+from src.state import AgentState, SectionDetail, SectionStatus
+from src.tools.t1_journal_context_retriever import (
+    JournalContextRetrieverArgs,
+    JournalContextRetrieverTool,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class JournalContextRetrieverArgs(BaseModel):
-    """Arguments for the JournalContextRetrieverTool."""
+class N5ContextRetrievalNode:
+    """Node for retrieving journal context for a given thesis section."""
 
-    query_or_keywords: str = Field(
-        description="La requête ou les mots-clés à rechercher dans le journal."
-    )
-    k_retrieval_count: int = Field(  # Rendre k_retrieval_count non optionnel ici
-        default=3, description="Nombre de chunks pertinents à récupérer (défaut 3)."
-    )
+    def _construct_query_from_keywords(self, keywords: list[str]) -> str:
+        """Constructs a search query from a list of keywords."""
+        if not keywords:
+            return ""
+        return "Expériences, apprentissages et réflexions liés à : " + ", ".join(
+            keywords
+        )
 
-    class Config:
-        """Configuration pour Pydantic model."""
-
-        arbitrary_types_allowed = True
-
-
-class JournalContextRetrieverTool(BaseTool):
-    """Outil pour récupérer des extraits pertinents du journal d'apprentissage."""
-
-    name: str = "journal_context_retriever"
-    description: str = (
-        "Récupère des extraits pertinents et anonymisés du journal "
-        "d'apprentissage de l'étudiant en fonction d'une requête ou de "
-        "mots-clés. Utiliser pour trouver des expériences spécifiques, des "
-        "tâches, des réflexions ou des détails mentionnés dans le journal."
-    )
-    args_schema: type[BaseModel] = JournalContextRetrieverArgs
-
-    vector_store_path: str
-    embedding_model_name: str
-
-    def _initialize_embeddings(
-        self,
-    ) -> FastEmbedEmbeddings | None:  # Changé pour Optional
-        """Initializes and returns the embedding model."""
-        try:
-            return FastEmbedEmbeddings(model_name=self.embedding_model_name)
-        except Exception as e:
-            logger.error(
-                "Échec init embedding model (%s): %s",
-                self.embedding_model_name,
-                e,
-                exc_info=True,
-            )
-            return None
-
-    def _load_vector_store(
-        self, embeddings: FastEmbedEmbeddings
-    ) -> FAISS | None:  # Changé pour Optional
-        """Loads the FAISS vector store from the configured path."""
-        index_file = os.path.join(self.vector_store_path, "index.faiss")
-        pkl_file = os.path.join(
-            self.vector_store_path, "index.pkl"
-        )  # FAISS aussi besoin du .pkl
-
-        # Vérifier l'existence du répertoire et des fichiers essentiels
-        if (
-            not os.path.isdir(self.vector_store_path)
-            or not os.path.exists(index_file)
-            or not os.path.exists(pkl_file)
-        ):
-            logger.error(
-                "Vector store non trouvé ou incomplet à %s. Fichiers index.faiss et index.pkl requis.",
-                self.vector_store_path,
-            )
-            return None
-        try:
-            return FAISS.load_local(
-                self.vector_store_path, embeddings, allow_dangerous_deserialization=True
-            )
-        except FileNotFoundError:  # Gérer spécifiquement si les fichiers ne sont pas trouvés (devrait être couvert par le check os.path.exists)
-            logger.error(
-                "Fichier index FAISS (index.faiss ou index.pkl) non trouvé dans %s",
-                self.vector_store_path,
-            )
-            return None
-        except Exception as e:
-            logger.error(
-                "Erreur chargement index FAISS %s: %s",
-                self.vector_store_path,
-                e,
-                exc_info=True,
-            )
-            return None
-
-    def _perform_similarity_search(
-        self, vector_store: FAISS, query: str, k: int
-    ) -> list[tuple[Document, float]] | None:  # Changé pour Optional et List
-        """Performs similarity search on the vector store."""
-        if vector_store.index is None or vector_store.index.ntotal == 0:
-            logger.warning("L'index FAISS à %s est vide.", self.vector_store_path)
-            return []  # Retourner une liste vide si l'index est vide
-        try:
-            return vector_store.similarity_search_with_score(query, k=k)
-        except Exception as e:
-            logger.error("Erreur recherche similarité: %s", e, exc_info=True)
-            return None
-
-    def _run(
-        self,
-        query_or_keywords: str,
-        k_retrieval_count: int = 3,  # k_retrieval_count a une valeur par défaut ici
-    ) -> list[dict[str, Any]]:
-        """Main execution logic for the tool."""
+    def run(self, state: AgentState) -> dict[str, Any]:  # noqa: C901
+        """Executes the context retrieval process for the current section."""
         logger.info(
-            "Récupération de contexte pour : '%s' avec k=%s",
-            query_or_keywords,
-            k_retrieval_count,
+            "--- EXÉCUTION DU NŒUD N5 : RÉCUPÉRATION DE CONTEXTE DU JOURNAL ---"
         )
-        # effective_k est maintenant directement k_retrieval_count car il a une valeur par défaut
-        effective_k = k_retrieval_count
+        updated_fields: dict[str, Any] = {
+            "last_successful_node": "N5_ContextRetrievalNode",
+            "current_operation_message": "Initialisation de la récupération de contexte.",
+            "error_message": None,
+        }
 
-        embeddings = self._initialize_embeddings()
-        if not embeddings:
-            return [{"error": "Échec init embedding model", "details": "Voir logs"}]
+        current_section_id = state.current_section_id
+        thesis_outline = state.thesis_outline
 
-        vector_store = self._load_vector_store(embeddings)
-        if not vector_store:
-            error_msg_part1 = "Vector store non trouvé ou erreur de chargement à"
-            error_msg_part2 = f" {self.vector_store_path}"
-            return [{"error": error_msg_part1 + error_msg_part2}]
-
-        retrieved_docs_with_scores = self._perform_similarity_search(
-            vector_store, query_or_keywords, effective_k
-        )
-        if retrieved_docs_with_scores is None:  # Erreur pendant la recherche
-            return [{"error": "Erreur lors de la recherche", "details": "Voir logs"}]
-
-        output_excerpts: list[dict[str, Any]] = []
-        if (
-            not retrieved_docs_with_scores
-        ):  # Liste vide (pas d'erreur, juste pas de résultat)
-            logger.info("Aucun résultat pertinent trouvé pour la requête.")
-            return []  # Retourner une liste vide
-
-        for doc, score in retrieved_docs_with_scores:
-            output_excerpts.append(
-                {
-                    "text": doc.page_content,
-                    "metadata": doc.metadata,
-                    "score": float(score),
-                }
+        if not current_section_id:
+            logger.error("N5 Error: current_section_id non trouvé dans l'état.")
+            updated_fields["error_message"] = (
+                "ID de section courant manquant pour la récupération de contexte."
             )
-        logger.info("Récupéré %d extraits.", len(output_excerpts))
-        return output_excerpts
+            updated_fields["current_operation_message"] = (
+                "Échec : ID de section courant manquant."
+            )
+            updated_fields["last_successful_node"] = "N5_ContextRetrievalNode_Error"
+            return updated_fields
 
-    async def _arun(
-        self, query_or_keywords: str, k_retrieval_count: int = 3
-    ) -> list[dict[str, Any]]:
-        logger.warning(
-            "L'exécution asynchrone de JournalContextRetrieverTool "
-            "appelle la version synchrone."
+        section_to_update: SectionDetail | None = None
+        section_index: int | None = None
+
+        current_thesis_outline = (
+            thesis_outline if isinstance(thesis_outline, list) else []
         )
-        # effective_k est directement k_retrieval_count car il a une valeur par défaut
-        return self._run(
-            query_or_keywords=query_or_keywords, k_retrieval_count=k_retrieval_count
+
+        for i, section_detail_item in enumerate(current_thesis_outline):
+            if section_detail_item.id == current_section_id:
+                section_to_update = section_detail_item
+                section_index = i
+                break
+
+        if section_to_update is None or section_index is None:
+            logger.error(
+                f"N5 Error: SectionDetail avec ID {current_section_id} non trouvée."
+            )
+            updated_fields["error_message"] = (
+                f"Section {current_section_id} non trouvée."
+            )
+            updated_fields["current_operation_message"] = (
+                f"Échec : Section {current_section_id} non trouvée."
+            )
+            updated_fields["last_successful_node"] = "N5_ContextRetrievalNode_Error"
+            updated_fields["thesis_outline"] = current_thesis_outline
+            return updated_fields
+
+        section_copy = section_to_update.copy(deep=True)
+
+        logger.info(
+            f"Traitement de la section : {section_copy.title} (ID: {current_section_id})"
         )
+
+        keywords = section_copy.student_experience_keywords
+
+        if not keywords:
+            logger.warning(
+                f"Aucun student_experience_keywords pour section {current_section_id}."
+            )
+            updated_fields["current_operation_message"] = (
+                f"Aucun mot-clé pour la section {current_section_id}."
+            )
+            section_copy.retrieved_journal_excerpts = []
+            section_copy.anonymized_context_for_llm = (
+                "[Aucun mot-clé fourni, donc aucun contexte de journal récupéré.]"
+            )
+            section_copy.status = SectionStatus.CONTEXT_RETRIEVED
+        else:
+            query_str = self._construct_query_from_keywords(keywords)
+            logger.info(f"Requête pour T1 : '{query_str}'")
+
+            try:
+                if not state.vector_store_path:
+                    raise ValueError("Vector store path n'est pas défini dans l'état.")
+
+                retriever_tool = JournalContextRetrieverTool(
+                    vector_store_path=state.vector_store_path,
+                    embedding_model_name=settings.embedding_model_name,
+                )
+                k = settings.k_retrieval_count
+                tool_args = JournalContextRetrieverArgs(
+                    query_or_keywords=query_str, k_retrieval_count=k
+                )
+                raw_excerpts = retriever_tool._run(**tool_args.model_dump())
+
+                if any(
+                    isinstance(excerpt, dict) and "error" in excerpt
+                    for excerpt in raw_excerpts
+                ):
+                    error_detail = next(
+                        (
+                            e.get("details", "Erreur inconnue de T1")
+                            for e in raw_excerpts
+                            if isinstance(e, dict) and "error" in e
+                        ),
+                        "Erreur inconnue de T1",
+                    )
+                    logger.error(
+                        f"L'outil T1 a retourné une erreur pour {current_section_id}: "
+                        f"{error_detail}"
+                    )
+                    updated_fields["error_message"] = (
+                        f"Erreur de l'outil T1 : {error_detail}"
+                    )
+                    section_copy.status = SectionStatus.ERROR_CONTEXT_RETRIEVAL
+                    section_copy.error_details_n5_context = f"T1 error: {error_detail}"
+
+                elif not raw_excerpts:
+                    logger.info(
+                        f"Aucun extrait pertinent trouvé par T1 pour {current_section_id}."
+                    )
+                    section_copy.retrieved_journal_excerpts = []
+                    section_copy.anonymized_context_for_llm = "[Aucun extrait de journal pertinent trouvé pour les mots-clés.]"
+                    section_copy.status = SectionStatus.CONTEXT_RETRIEVED
+                else:
+                    section_copy.retrieved_journal_excerpts = raw_excerpts
+                    anonymized_context_for_llm = "\n\n---\n\n".join(
+                        [
+                            excerpt["text"]
+                            for excerpt in raw_excerpts
+                            if isinstance(excerpt, dict) and "text" in excerpt
+                        ]
+                    )
+                    section_copy.anonymized_context_for_llm = anonymized_context_for_llm
+                    section_copy.status = SectionStatus.CONTEXT_RETRIEVED
+                    logger.info(
+                        f"{len(raw_excerpts)} extraits récupérés pour "
+                        f"{current_section_id}."
+                    )
+
+                updated_fields["current_operation_message"] = (
+                    f"Récupération de contexte pour section {current_section_id} "
+                    f"terminée. Statut: {section_copy.status.value}"
+                )
+
+            except Exception as e:
+                logger.exception(
+                    f"Exception lors de la récupération de contexte pour "
+                    f"{current_section_id}: {e}"
+                )
+                updated_fields["error_message"] = f"Exception T1/N5 : {str(e)}"
+                section_copy.status = SectionStatus.ERROR_CONTEXT_RETRIEVAL
+                section_copy.error_details_n5_context = f"N5 Exception: {str(e)}"
+                updated_fields["last_successful_node"] = "N5_ContextRetrievalNode_Error"
+
+        new_thesis_outline = [s.copy(deep=True) for s in current_thesis_outline]
+        if section_index is not None:  # Vérification pour mypy
+            new_thesis_outline[section_index] = section_copy
+        updated_fields["thesis_outline"] = new_thesis_outline
+
+        if (
+            not updated_fields.get("error_message")
+            and updated_fields.get("last_successful_node")
+            != "N5_ContextRetrievalNode_Error"
+        ):
+            updated_fields["last_successful_node"] = "N5_ContextRetrievalNode"
+
+        logger.info(
+            f"--- FIN NŒUD N5 --- Statut section {current_section_id}: "
+            f"{section_copy.status.value}"
+        )
+        return updated_fields

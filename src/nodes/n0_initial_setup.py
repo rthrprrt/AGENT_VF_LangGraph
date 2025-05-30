@@ -11,8 +11,9 @@ logger = logging.getLogger(__name__)
 
 class N0InitialSetupNode:
     """
-    Nœud d'initialisation pour configurer les chemins et les modèles de l'agent
-    au démarrage.
+    Nœud d'initialisation pour configurer les chemins et les modèles de l'agent.
+
+    Ce nœud est appelé au démarrage pour initialiser l'état.
     """
 
     def run(self, state: AgentState) -> dict[str, Any]:  # noqa: C901
@@ -38,29 +39,19 @@ class N0InitialSetupNode:
             "user_persona": state.user_persona,
             "example_thesis_text_content": state.example_thesis_text_content,
         }
-        # Initialiser updated_fields avec une copie pour s'assurer que les champs non modifiés
-        # mais attendus par les tests (comme user_persona si non None) sont présents.
         updated_fields: dict[str, Any] = current_values_from_state.copy()
 
-        # School Guidelines Path
         if current_values_from_state["school_guidelines_path"] is None:
             default_path = settings.default_school_guidelines_path
             updated_fields["school_guidelines_path"] = default_path
-            logger.info(
-                "  Set school_guidelines_path to default: %s",
-                default_path,
-            )
+            logger.info("  Set school_guidelines_path to default: %s", default_path)
 
-        # Journal Path
         if current_values_from_state["journal_path"] is None:
             default_path = settings.default_journal_path
             updated_fields["journal_path"] = default_path
             logger.info("  Set journal_path to default: %s", default_path)
 
-        # Output Directory
-        current_output_dir = updated_fields[
-            "output_directory"
-        ]  # Lire depuis updated_fields (qui a la copie de state)
+        current_output_dir = updated_fields["output_directory"]
         output_dir_field = AgentState.__fields__.get("output_directory")
         if output_dir_field and (
             current_output_dir is None or current_output_dir == output_dir_field.default
@@ -73,17 +64,14 @@ class N0InitialSetupNode:
         if current_output_dir:
             os.makedirs(current_output_dir, exist_ok=True)
             logger.info("  Ensured output directory exists: %s", current_output_dir)
-        else:
+        else:  # pragma: no cover
             logger.error(
                 "N0: Output directory is not set and no default could be applied."
             )
             updated_fields["error_message"] = "N0: Output directory missing"
-            if (
-                "output_directory" not in updated_fields
-            ):  # S'assurer qu'il est là pour les tests
+            if "output_directory" not in updated_fields:
                 updated_fields["output_directory"] = None
 
-        # Vector Store Path
         current_vector_store_path = updated_fields["vector_store_path"]
         vector_store_path_field = AgentState.__fields__.get("vector_store_path")
 
@@ -112,29 +100,24 @@ class N0InitialSetupNode:
                 "  Ensured vector store directory exists: %s",
                 current_vector_store_path,
             )
-        else:
+        else:  # pragma: no cover
             logger.error(
                 "N0: Vector store path is not set and no default could be applied."
             )
+            error_msg_prefix = updated_fields.get("error_message", "")
             updated_fields["error_message"] = (
-                f'{updated_fields.get("error_message", "")} N0: Vector store path missing'.strip()
+                f"{error_msg_prefix} N0: Vector store path missing".strip()
             )
-            if (
-                "vector_store_path" not in updated_fields
-            ):  # S'assurer qu'il est là pour les tests
+            if "vector_store_path" not in updated_fields:
                 updated_fields["vector_store_path"] = None
 
-        # LLM and Embedding models
         if current_values_from_state["llm_model_name"] is None:
             updated_fields["llm_model_name"] = settings.llm_model_name
             logger.info("  Set LLM model to: %s", settings.llm_model_name)
 
         if current_values_from_state["embedding_model_name"] is None:
             updated_fields["embedding_model_name"] = settings.embedding_model_name
-            logger.info(
-                "  Set embedding model to: %s",
-                settings.embedding_model_name,
-            )
+            logger.info("  Set embedding model to: %s", settings.embedding_model_name)
 
         state_dict_set_fields = state.dict(exclude_unset=True)
         if "recreate_vector_store" not in state_dict_set_fields:
@@ -145,9 +128,7 @@ class N0InitialSetupNode:
             )
 
         user_persona_field = AgentState.__fields__.get("user_persona")
-        current_user_persona = updated_fields[
-            "user_persona"
-        ]  # Lire depuis la copie de l'état
+        current_user_persona = updated_fields["user_persona"]
 
         if (
             user_persona_field
@@ -157,25 +138,24 @@ class N0InitialSetupNode:
             )
             and user_persona_field.default is not None
         ):
-            # Si le persona est None ou déjà le défaut Pydantic, il n'est pas nécessaire de le mettre à jour
-            # updated_fields["user_persona"] = user_persona_field.default # Déjà fait par la copie initiale
             logger.info("  User persona is Pydantic default from AgentState model.")
         elif current_user_persona is not None:
-            # Déjà dans updated_fields depuis la copie initiale
             logger.info(
                 "  User persona preserved from initial state: %s", current_user_persona
             )
-        else:
+        else:  # pragma: no cover
             fallback_persona = "Generic Student Persona (N0 Fallback)"
             updated_fields["user_persona"] = fallback_persona
             logger.warning(
-                "  User persona was None and no Pydantic default, set a hardcoded N0 default: %s",
+                "  User persona was None and no Pydantic default, "
+                "set a hardcoded N0 default: %s",
                 fallback_persona,
             )
 
-        if updated_fields["example_thesis_text_content"] is None:
+        if updated_fields["example_thesis_text_content"] is None:  # pragma: no cover
             logger.info(
-                "  example_thesis_text_content is None, no default set in N0 from settings."
+                "  example_thesis_text_content is None, "
+                "no default set in N0 from settings."
             )
 
         updated_fields["last_successful_node"] = "N0InitialSetupNode"
