@@ -26,6 +26,82 @@ This project aims to develop an AI agent, AGENT_VF, capable of autonomously writ
 *   Pytest (for testing)
 *   `unstructured[docx]` (for parsing `.docx` journal entries)
 
+## Architecture
+
+```mermaid
+graph TD
+    subgraph "📁 Données d'entrée"
+        A["Directives PDF"] --> B["N1 Ingestion Guidelines"]
+        C["Journal DOCX"] --> D["N2 Ingestion & Anonymisation"]
+        E["Exemple Thèse"] --> B
+    end
+    
+    subgraph "🧠 Mémoire & Index"
+        D --> F["Chunks anonymisés"]
+        F --> G["FastEmbed Embeddings"]
+        G --> H["FAISS Vector Store"]
+        H --> I["T1 Context Retriever"]
+    end
+    
+    subgraph "🤖 Planification IA"
+        B --> J["N3 Thesis Planner"]
+        E --> J
+        J --> K["ChatOllama LLM<br/>gemma3:12b"]
+        K --> L["Plan structuré"]
+    end
+    
+    subgraph "🔄 Pipeline de génération"
+        L --> M["N4 Router"]
+        M --> N["N5 Context Retrieval"]
+        N --> I
+        I --> O["Extraits pertinents"]
+        O --> P["N6 Section Drafting"]
+        P --> K
+        K --> Q["Brouillon section"]
+    end
+    
+    subgraph "✅ Validation"
+        Q --> R["N7 Self Critique"]
+        R --> S{"Qualité OK?"}
+        S -->|Non| P
+        S -->|Oui| T["N8 Human Review"]
+        T --> U{"Approuvé?"}
+        U -->|Non| P
+        U -->|Oui| M
+    end
+    
+    subgraph "📖 Finalisation"
+        M --> V["N9 Bibliography"]
+        V --> W["Document final"]
+    end
+    
+    subgraph "💾 Persistance"
+        X["LangGraph State"] --> Y["SQLite Checkpointer"]
+        Y --> Z["Reprise thread"]
+    end
+    
+    %% Configuration initiale
+    AA["N0 Setup"] --> B
+    AA --> D
+    AA --> J
+    
+    %% Gestion état global
+    X -.-> AA
+    X -.-> J
+    X -.-> M
+    X -.-> P
+    X -.-> R
+    X -.-> T
+    
+    %% Styles
+    style K fill:#ff9800,color:#fff
+    style H fill:#2196f3,color:#fff
+    style L fill:#9c27b0,color:#fff
+    style W fill:#4caf50,color:#fff
+    style X fill:#e91e63,color:#fff
+    style T fill:#ffc107,color:#000
+```
+
 ## Setup
 
 1.  Ensure Python 3.11+ and Poetry are installed.
