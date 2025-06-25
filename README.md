@@ -102,6 +102,78 @@ graph TD
     style T fill:#ffc107,color:#000
 ```
 
+## Structure détaillée
+```
+AGENT_VF_LangGraph/
+├── .git/                           # Contrôle de version Git
+├── .github/                        # Configuration GitHub Actions
+│   └── workflows/
+│       └── python-ci.yml           # Pipeline CI/CD (tests, lint)
+├── .venv/                          # Environnement virtuel Python (créé par Poetry)
+├── data/                           # Données d'entrée et traitées (NON versionnées)
+│   ├── input/                      # Données sources
+│   │   ├── school_guidelines/      # Directives scolaires Epitech
+│   │   │   ├── Mission_Professionnelle_Digi5_EPITECH.pdf
+│   │   │   └── Mémoire de Mission Professionnelle – Digi5.txt
+│   │   └── journal_entries/        # Entrées journal alternance (.txt, .docx)
+│   │       ├── 2024-01-01_dummy_entry.txt
+│   │       └── [autres fichiers journal...]
+│   └── processed/                  # Données intermédiaires générées
+│       ├── vector_store/           # Index FAISS et embeddings
+│       │   ├── index.faiss
+│       │   └── index.pkl
+│       └── langgraph_checkpoints.sqlite # Persistance LangGraph
+├── outputs/                        # Résultats générés
+│   ├── pipeline_test/              # Sorties tests pipeline
+│   └── theses/                     # Mémoires générés finaux
+├── src/                            # Code source principal
+│   ├── __init__.py
+│   ├── config.py                   # Configuration globale (modèles, chemins)
+│   ├── state.py                    # Définition AgentState et modèles Pydantic
+│   ├── graph_assembler.py          # Assemblage et compilation graphe LangGraph
+│   ├── persistence.py              # Gestion persistance SQLite
+│   ├── utils.py                    # Fonctions utilitaires
+│   ├── nodes/                      # Nœuds de traitement LangGraph
+│   │   ├── __init__.py
+│   │   ├── n0_initial_setup.py     # Initialisation chemins et modèles
+│   │   ├── n1_guideline_ingestor.py # Ingestion directives PDF
+│   │   ├── n2_journal_ingestor_anonymizer.py # Traitement journal + FAISS
+│   │   ├── n3_thesis_outline_planner.py # Génération plan LLM
+│   │   ├── n4_section_processor_router.py # Routage sections
+│   │   ├── n5_context_retrieval.py # Récupération contexte RAG
+│   │   ├── n6_section_drafting.py  # Rédaction sections LLM
+│   │   └── n8_human_review_hitl_node.py # Revue humaine HITL
+│   └── tools/                      # Outils LangGraph
+│       ├── __init__.py
+│       └── t1_journal_context_retriever.py # Outil RAG FAISS
+├── tests/                          # Tests unitaires et intégration
+│   ├── __init__.py
+│   ├── nodes/                      # Tests des nœuds
+│   │   ├── test_n0_initial_setup.py
+│   │   ├── test_n1_guideline_ingestor.py
+│   │   ├── test_n2_rag_parts.py
+│   │   ├── test_n2_text_sanitization.py
+│   │   ├── test_n3_thesis_outline_planner.py
+│   │   ├── test_n4_section_processor_router.py
+│   │   ├── test_n5_context_retrieval.py
+│   │   ├── test_n6_section_drafting.py
+│   │   └── test_n8_human_review_hitl_node.py
+│   ├── tools/                      # Tests des outils
+│   │   └── test_t1_journal_context_retriever.py
+│   └── test_persistence.py         # Tests persistance
+├── scripts/                        # Scripts utilitaires (optionnel)
+│   └── rename_journals.py          # Renommage fichiers journal
+├── .env.example                    # Exemple variables environnement
+├── .env                            # Variables environnement locales (NON versionnées)
+├── .gitignore                      # Exclusions Git
+├── pyproject.toml                  # Configuration Poetry et outils
+├── poetry.lock                     # Verrouillage dépendances Poetry
+├── README.md                       # Documentation projet
+├── check_fastembed_models.py       # Vérification modèles FastEmbed
+├── run_pipeline_n3_n5_n6.py        # Script test pipeline principal
+└── Structure de Répertoires        # Documentation structure (ce fichier)
+```
+
 ## Setup
 
 1.  Ensure Python 3.11+ and Poetry are installed.
