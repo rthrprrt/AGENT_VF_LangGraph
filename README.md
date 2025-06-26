@@ -179,7 +179,7 @@ AGENT_VF_LangGraph/
 1.  Ensure Python 3.11+ and Poetry are installed.
 2.  Clone the repository:
     ```bash
-    git clone <your-repo-url>
+    git clone https://github.com/rthrprrt/AGENT_VF_LangGraph.git
     cd AGENT_VF_LangGraph
     ```
 3.  Install dependencies (including dev dependencies for testing and `unstructured` for DOCX processing):
